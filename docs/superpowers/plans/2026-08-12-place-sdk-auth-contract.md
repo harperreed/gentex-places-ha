@@ -317,6 +317,8 @@ git commit -m "feat(auth): add cache-only login"
 
 ### Task 3: Public discovery validation
 
+**State:** Complete in SDK commits `ad5d38d` and `2785812`; spec and quality reviews approved.
+
 **Files:**
 - Modify: `src/place/client.py`
 - Test: `tests/test_client.py`
@@ -325,7 +327,7 @@ git commit -m "feat(auth): add cache-only login"
 - Consumes: `Discoverer.discover() -> list[DiscoverDevice]`.
 - Produces: `async PlaceClient.async_discover() -> list[DiscoverDevice]`; `start()` reuses it.
 
-- [ ] **Step 1: Write the failing public-discovery test**
+- [x] **Step 1: Write the failing public-discovery test**
 
 Add to `tests/test_client.py`, using its existing client/fake constructors:
 
@@ -345,13 +347,13 @@ async def test_async_discover_returns_provider_devices_without_starting_connecti
 
 If the existing fakes use different counter names, add those counters rather than introducing mocks.
 
-- [ ] **Step 2: Run and see the missing method**
+- [x] **Step 2: Run and see the missing method**
 
 Run: `uv run pytest tests/test_client.py -q`
 
 Expected: FAIL with `PlaceClient` missing `async_discover`.
 
-- [ ] **Step 3: Add the method and make startup use it**
+- [x] **Step 3: Add the method and make startup use it**
 
 ```python
 async def async_discover(self) -> list[DiscoverDevice]:
@@ -361,7 +363,7 @@ async def async_discover(self) -> list[DiscoverDevice]:
 
 Change the first line of `start()` from `self._provider.discover()` to `self.async_discover()`. Do not duplicate discovery parsing in the Home Assistant integration.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run:
 
