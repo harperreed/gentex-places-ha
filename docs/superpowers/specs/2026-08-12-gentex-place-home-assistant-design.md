@@ -1,7 +1,9 @@
+<!-- ABOUTME: Defines the approved architecture and release gates for Gentex PLACE. -->
+<!-- ABOUTME: Keeps Home Assistant behavior tied to verified SDK and platform contracts. -->
 # Gentex PLACE Home Assistant integration — design
 
 - **Date:** 2026-08-12
-- **Status:** approved in conversation; pending written-spec review
+- **Status:** approved and reviewed
 - **Branch:** `wip/gentex-place-integration`
 - **Integration domain:** `gentex_place`
 - **Display name:** Gentex PLACE
@@ -19,8 +21,9 @@ health, connectivity, and motion. MQTT pushes state changes at once. A slow shad
 refresh checks liveness and repairs missed state.
 
 The integration should meet the current Home Assistant integration rules and the
-HACS default-repository requirements at release time. It supports the current stable
-Home Assistant release at that time and newer releases.
+HACS default-repository requirements at release time. Its minimum version is the
+current stable Home Assistant release at that time. CI tests that minimum and tracks
+latest stable; compatibility with an untested future release is not promised.
 
 ## 2. Assumptions and evidence
 
@@ -52,7 +55,8 @@ Home Assistant release at that time and newer releases.
 - Create enabled entities for every state supported by the SDK.
 - Immediate MQTT updates, periodic shadow refresh, account availability, and
   per-device availability.
-- Reauthentication, reload, unload, diagnostics, translations, and useful repairs.
+- Reauthentication, reload, unload, diagnostics, and translations. No repair flow
+  ships until a separate, user-fixable issue exists.
 - Unit, Home Assistant integration, packaged-system, and opt-in live tests.
 - HACS validation, Hassfest, formatting, linting, type checking, and dependency checks.
 
@@ -122,9 +126,8 @@ custom_components/gentex_place/
   diagnostics.py
   entity.py
   manifest.json
-  repairs.py                 # only when a user-actionable issue exists
+  brand/icon.png             # licensed 256x256 or larger brand/product art
   sensor.py
-  strings.json
   translations/en.json
 tests/
   components/gentex_place/
@@ -226,8 +229,8 @@ parsing exception strings or logs is forbidden.
 3. Create and start one `PlaceClient`.
 4. Let the client discover the account, build its `PlaceDevice` registry, subscribe to
    shadow and household event topics, and request initial shadows.
-5. Wait a bounded setup period for the MQTT connection and at least one initial shadow
-   answer when devices exist.
+5. Wait up to 30 seconds for the MQTT connection and at least one initial reported
+   shadow answer when devices exist.
 6. Forward the config entry to `sensor` and `binary_sensor` platforms.
 
 A temporary discovery or connection failure raises `ConfigEntryNotReady`. A confirmed
@@ -237,8 +240,10 @@ setup with a clear form error.
 ### 6.2 Push updates
 
 - An SDK device update calls the coordinator on Home Assistant's event loop.
-- The coordinator calls `async_set_updated_data` with the same device registry, causing
-  entity listeners to read the changed `PlaceDevice` values.
+- The coordinator updates the same device registry and notifies entity listeners
+  without resetting its fixed health-refresh clock. Home Assistant's default
+  `async_set_updated_data()` reschedules the next poll, so using it unchanged could let
+  frequent MQTT traffic postpone health checks forever.
 - A connection callback updates account availability and all listeners.
 - A motion event updates the source device and schedules that device's motion entity to
   clear 30 seconds after the latest event. A newer event cancels and replaces the old
@@ -273,11 +278,14 @@ device entities.
 A device is available only when:
 
 1. the account connection is up; and
-2. the device has supplied reported shadow state within the last 15 minutes.
+2. the device has supplied reported shadow state no more than 15 minutes ago. It
+   becomes stale only when the age exceeds 15 minutes.
 
-During startup, discovered devices receive one setup grace window while the initial
-shadow request is outstanding. If no reported state arrives by the bounded setup
-deadline, setup retries instead of presenting fresh entities as healthy.
+During startup, discovered devices receive a 30-second grace window while the initial
+shadow request is outstanding. If no discovered device supplies reported state by the
+deadline, setup retries instead of presenting a dead account as healthy. Once one
+device answers, setup completes; any silent sibling loads as unavailable rather than
+blocking the whole account.
 
 Each device also has an enabled connectivity binary sensor. Other entities retain
 their last values during a disconnect but report unavailable. One stale device does
@@ -438,7 +446,7 @@ Home Assistant config-flow and config-entry machinery:
 - reauthentication success, wrong-account rejection, and token replacement;
 - push updates, reconnect, sibling isolation, stale devices, and shadow refresh;
 - entity state, units, device classes, enum translation, and availability; and
-- diagnostics download and repairs.
+- diagnostics download and redaction.
 
 Tests use hand-written fakes at the SDK boundary. They do not assert a mocking
 framework's behavior or mock Home Assistant internals.
@@ -465,8 +473,9 @@ an authorized person records a passing live check outside Git.
 ### 11.5 Canonical checks
 
 `scripts/check` runs the repository's formatter check, linter, type checker, complete
-test suite, Hassfest, HACS validation, manifest validation, and dependency/security
-checks. CI invokes this script rather than maintaining a second command list.
+test suite, manifest validation, and dependency/security checks. CI invokes this
+script rather than maintaining a second local command list. Separate official HACS
+and Hassfest CI jobs perform repository-aware validation that cannot run fully offline.
 
 Checks produce no new warnings or errors. Expected error logs are captured and
 asserted. Pre-existing third-party noise is documented rather than ignored.
@@ -481,8 +490,9 @@ asserted. Pre-existing third-party noise is documented rather than ignored.
 - The public GitHub repository has a description, relevant topics, issues enabled,
   and published GitHub Releases. Tags alone are insufficient.
 - HACS and Hassfest GitHub Actions pass with no ignored failures.
-- A `home-assistant/brands` contribution for `gentex_place` lands before default-store
-  submission. Brand assets must have verified usage rights.
+- The integration ships a licensed `custom_components/gentex_place/brand/icon.png`
+  that meets current Home Assistant custom-integration image rules. Brand usage rights
+  must be verified before release.
 - Release versions use SemVer. The integration manifest version and GitHub release tag
   match.
 - `hacs.json` pins the minimum Home Assistant version to the stable release used by
@@ -500,7 +510,8 @@ asserted. Pre-existing third-party noise is documented rather than ignored.
 5. The package installs through HACS into a clean current-stable Home Assistant system.
 6. The opt-in read-only live check passes against a real PLACE account.
 7. Diagnostics and logs contain none of the redaction canaries.
-8. The brands entry and repository metadata required for HACS default inclusion exist.
+8. The local licensed brand image and repository metadata required for HACS default
+   inclusion exist.
 
 ## 13. Success criteria
 
@@ -531,6 +542,8 @@ release gates by pinning a Git checkout or guessing device writes.
 - [Home Assistant integration manifest](https://developers.home-assistant.io/docs/creating_integration_manifest/)
 - [Home Assistant config flow](https://developers.home-assistant.io/docs/core/integration/config_flow/)
 - [Home Assistant integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/)
+- [Home Assistant custom-integration translations](https://developers.home-assistant.io/docs/internationalization/custom_integration/)
+- [Home Assistant custom-integration brand images](https://developers.home-assistant.io/docs/core/integration/brand_images/)
 - [HACS integration requirements](https://hacs.xyz/docs/publish/integration/)
 - [HACS default repository requirements](https://hacs.xyz/docs/publish/include/)
 - [place-integration-api on PyPI](https://pypi.org/project/place-integration-api/)
