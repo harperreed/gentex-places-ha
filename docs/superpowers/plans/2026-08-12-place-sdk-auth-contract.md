@@ -191,6 +191,8 @@ git commit -m "feat(auth): classify rejected credentials"
 
 ### Task 2: Cache-only runtime authentication
 
+**State:** Complete in SDK commits `25e625f`, `7732e81`, `4dcdcae`, and `c3a6830`; spec and quality reviews approved.
+
 **Files:**
 - Modify: `src/place/auth/cognito_auth.py`
 - Test: `tests/test_cognito_auth.py`
@@ -199,7 +201,7 @@ git commit -m "feat(auth): classify rejected credentials"
 - Consumes: `TokenCache.load() -> dict[str, Any] | None`, `CognitoGateway.refresh(refresh_token)`.
 - Produces: `async CognitoAuth.authenticate_from_cache(username: str) -> None`.
 
-- [ ] **Step 1: Write cache-only authentication tests**
+- [x] **Step 1: Write cache-only authentication tests**
 
 Add to `tests/test_cognito_auth.py`:
 
@@ -257,13 +259,13 @@ async def test_authenticate_from_cache_propagates_rejected_refresh_without_srp()
     assert gw.login_calls == 0
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Run: `uv run pytest tests/test_cognito_auth.py -q`
 
 Expected: FAIL with `CognitoAuth` missing `authenticate_from_cache`.
 
-- [ ] **Step 3: Implement the public cache-only method**
+- [x] **Step 3: Implement the public cache-only method**
 
 Add this method to `CognitoAuth` and import both typed auth errors:
 
@@ -292,7 +294,7 @@ Do not implement this by calling `authenticate(username, "")`; that method delib
 
 Also change interactive `authenticate()` so a confirmed invalid cached token falls back to the supplied password, while `PlaceTransientAuthError` propagates instead of hiding an outage behind a second login attempt. Add tests for both branches and convert the existing rejected-cache test to raise `PlaceInvalidAuthError`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run:
 
@@ -304,7 +306,7 @@ uv run basedpyright
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/place/auth/cognito_auth.py tests/test_cognito_auth.py
