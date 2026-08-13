@@ -384,6 +384,8 @@ git commit -m "feat: expose account discovery"
 
 ### Task 4: Runtime error notifications and terminal invalid auth
 
+**State:** Complete in SDK commits `c4617e3` and `03ba385`; spec and quality reviews approved.
+
 **Files:**
 - Modify: `src/place/client.py`
 - Modify: `src/place/transport.py`
@@ -394,7 +396,7 @@ git commit -m "feat: expose account discovery"
 - Consumes: `PlaceError`, `PlaceInvalidAuthError`.
 - Produces: `PlaceClient.on_error(callback: Callable[[PlaceError], None]) -> Callable[[], None]`; connection factories accept `(on_message, on_state, on_error)`; invalid auth stops reconnect, while other SDK errors notify and retry.
 
-- [ ] **Step 1: Test connection error policy**
+- [x] **Step 1: Test connection error policy**
 
 Add focused scenarios to `tests/test_place_connection.py` with its hand-written transports/auth fakes:
 
@@ -449,7 +451,7 @@ async def test_mqtt_failure_notifies_with_sanitized_connection_error() -> None:
 
 Adapt constructor helpers to the current test file, but assert these exact outcomes.
 
-- [ ] **Step 2: Test client listener registration and unsubscribe**
+- [x] **Step 2: Test client listener registration and unsubscribe**
 
 Update `FakeConnection`/`connection_factory` in `tests/test_client.py` to accept an error callback, then add:
 
@@ -466,7 +468,7 @@ def test_on_error_forwards_typed_error_and_unsubscribes() -> None:
     assert seen == [first]
 ```
 
-- [ ] **Step 3: Run and confirm failures**
+- [x] **Step 3: Run and confirm failures**
 
 Run:
 
@@ -476,7 +478,7 @@ uv run pytest tests/test_place_connection.py tests/test_client.py -q
 
 Expected: FAIL because connection/client error callbacks do not exist and invalid auth still enters backoff.
 
-- [ ] **Step 4: Implement connection error policy**
+- [x] **Step 4: Implement connection error policy**
 
 In `src/place/transport.py`, add `on_error` to `PlaceConnection.__init__` and store it. Split the catch tail exactly by terminal versus retryable SDK failure:
 
@@ -503,7 +505,7 @@ except MqttError as exc:
 
 Extract only the existing delay/log/sleep block into `_backoff`; do not change its formula. Log `type(exc).__name__`, not `str(exc)`, so future exception text cannot leak.
 
-- [ ] **Step 5: Implement client fan-out**
+- [x] **Step 5: Implement client fan-out**
 
 In `src/place/client.py`:
 
@@ -526,7 +528,7 @@ def _emit_error(self, error: PlaceError) -> None:
 
 Update every test connection factory to the three-callback signature. Do not keep a two-argument compatibility path; 0.3.0 is not yet public and Doctor Biz has not approved a shim.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 Run:
 
