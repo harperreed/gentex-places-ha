@@ -8,3 +8,8 @@
   for MQTT pushes so traffic cannot postpone the fixed five-minute health refresh.
 - SDK 0.3.0 release needs cache-only login and typed invalid/transient runtime auth;
   never call interactive login with a fake password or parse SDK log text.
+- SDK auth results and typed failures need a principal-generation check. Delayed work
+  from an old account must not change or stop the current account.
+- Raising a sanitized error `from None` inside an `except` block still leaves the raw
+  error in `__context__` or `sys.exception()`. Leave the handler before notifying or
+  raising across the public boundary.

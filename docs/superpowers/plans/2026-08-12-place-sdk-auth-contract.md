@@ -657,6 +657,8 @@ git add pyproject.toml uv.lock scripts/check scripts/check_release.py tests/test
 git commit -m "ci: validate SDK releases before publishing"
 ```
 
-- [ ] **Step 6: Stop at the external release gate**
+- [x] **Step 6: Stop at the external release gate**
+
+**Candidate:** SDK commit `807112d`; independent whole-branch review approved with no findings. Fresh `UV_PYTHON=3.11 scripts/check` verification passed with Python 3.11.14, Ruff and basedpyright at zero findings, 224 tests, and Twine-approved wheel and sdist. No push, tag, release, PyPI request, or live-account call has occurred.
 
 Record the candidate commit and the output of `scripts/check`. Do not run `git push`, create a GitHub release, or publish to PyPI in this plan. Doctor Biz must authorize those external writes after reviewing the SDK branch. The Home Assistant plan does not begin until PyPI serves this exact SDK contract; this keeps its lock file and clean-install tests honest.
