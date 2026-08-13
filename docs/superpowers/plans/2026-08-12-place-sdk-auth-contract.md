@@ -550,6 +550,8 @@ git commit -m "feat: report runtime authentication failures"
 
 ### Task 5: Canonical checks, documentation, and 0.3.0 release candidate
 
+**State:** Complete in SDK commits `a5913f4` and `1de0674`; spec and quality reviews approved. External publish remains gated.
+
 **Files:**
 - Create: `scripts/check`
 - Create: `scripts/check_release.py`
@@ -564,7 +566,7 @@ git commit -m "feat: report runtime authentication failures"
 - Consumes: Tasks 1–4 public APIs.
 - Produces: one canonical verification command and release documentation; no external release.
 
-- [ ] **Step 1: Lock the public contract in the API test**
+- [x] **Step 1: Lock the public contract in the API test**
 
 Extend `tests/test_public_api.py`:
 
@@ -585,7 +587,7 @@ def test_home_assistant_auth_contract_is_public() -> None:
     assert issubclass(PlaceTransientAuthError, PlaceAuthError)
 ```
 
-- [ ] **Step 2: Add Ruff and the canonical check script**
+- [x] **Step 2: Add Ruff and the canonical check script**
 
 Add `ruff`, `build`, and `twine` to `[project.optional-dependencies].dev`, then create executable `scripts/check`:
 
@@ -608,7 +610,7 @@ uv run twine check "$sdk_dist_dir"/*
 
 Run `chmod +x scripts/check` and `uv lock` so dependency resolution is reproducible. The temporary directory is explicit and narrow; the trap never targets the repo.
 
-- [ ] **Step 3: Document the supported flows and read-only boundary**
+- [x] **Step 3: Document the supported flows and read-only boundary**
 
 Replace the one-line README with concise sections that contain these verified examples:
 
@@ -626,7 +628,7 @@ unsubscribe = client.on_error(handle_place_error)
 
 Document that `PlaceInvalidAuthError` needs user action, other `PlaceAuthError` values may be transient, and the client remains read-only. Update `examples/quickstart.py` only if its existing constructor differs from the final public signature.
 
-- [ ] **Step 4: Run the full release-candidate checks and inspect the wheel**
+- [x] **Step 4: Run the full release-candidate checks and inspect the wheel**
 
 Before the full checks, create `scripts/check_release.py` with `argparse` and `tomllib`. Its public helper `version_for_tag(tag: str, pyproject: Path) -> str` strips one leading `v`, compares it with `[project].version`, and raises `ValueError("tag <tag> does not match project version <version>")` on mismatch. Test `v0.3.0` and `0.3.0` success plus `v0.3.1` failure in `tests/test_release.py`.
 
@@ -645,7 +647,7 @@ git diff --check
 
 Expected: checks PASS; the wheel contains `place/py.typed`; import assertion exits zero. Delete neither build artifacts nor user data automatically; keep `dist/` ignored by Git.
 
-- [ ] **Step 5: Fresh-eyes review and commit**
+- [x] **Step 5: Fresh-eyes review and commit**
 
 Run the fresh-eyes review over all branch changes, fix findings with focused tests, rerun `scripts/check`, then:
 
