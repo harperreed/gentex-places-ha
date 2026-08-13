@@ -41,6 +41,8 @@ Expected: a clean WIP branch and the existing SDK suite and type checker pass be
 
 ### Task 1: Typed and secret-safe Cognito failures
 
+**State:** Complete in SDK commits `abf6d6d` and `a3c8b00`; spec and quality reviews approved.
+
 **Files:**
 - Modify: `src/place/exceptions.py`
 - Modify: `src/place/__init__.py`
@@ -53,7 +55,7 @@ Expected: a clean WIP branch and the existing SDK suite and type checker pass be
 - Consumes: botocore `ClientError.response["Error"]["Code"]`.
 - Produces: `PlaceInvalidAuthError(PlaceAuthError)`, `PlaceTransientAuthError(PlaceAuthError)`, and sanitized gateway exceptions.
 
-- [ ] **Step 1: Add failing exception and gateway tests**
+- [x] **Step 1: Add failing exception and gateway tests**
 
 Add the public hierarchy assertion to `tests/test_exceptions.py` and public import to `tests/test_public_api.py`:
 
@@ -110,7 +112,7 @@ def test_refresh_keeps_throttling_retryable_and_secret_safe(monkeypatch) -> None
     assert "TOKEN-CANARY" not in str(caught.value)
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm the contract is missing**
+- [x] **Step 2: Run the focused tests and confirm the contract is missing**
 
 Run:
 
@@ -120,7 +122,7 @@ uv run pytest tests/test_exceptions.py tests/test_cognito_gateway.py tests/test_
 
 Expected: FAIL because `PlaceInvalidAuthError` does not exist or is not exported.
 
-- [ ] **Step 3: Implement the typed, sanitized boundary**
+- [x] **Step 3: Implement the typed, sanitized boundary**
 
 Add to `src/place/exceptions.py` and export it from `src/place/__init__.py`:
 
@@ -165,7 +167,7 @@ def _as_place_auth_error(
 
 Import both new errors beside `PlaceAuthError`. Pass `frozenset({"NotAuthorizedException"})` for refresh; `frozenset({"NotAuthorizedException", "UserNotFoundException", "PasswordResetRequiredException", "UserNotConfirmedException"})` for SRP; and `frozenset({"CodeMismatchException", "ExpiredCodeException", "NotAuthorizedException", "UserNotFoundException"})` for MFA. Pass no invalid codes for the IoT identity exchange because `NotAuthorizedException` there has other authorization causes. Tests cover every set and an unknown code.
 
-- [ ] **Step 4: Run focused and full SDK checks**
+- [x] **Step 4: Run focused and full SDK checks**
 
 Run:
 
@@ -177,7 +179,7 @@ uv run basedpyright
 
 Expected: all commands PASS with no new warnings.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git status --short
