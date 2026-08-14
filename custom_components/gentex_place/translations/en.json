@@ -99,6 +99,18 @@
           "test": "Test"
         }
       },
+      "battery_status": {
+        "name": "Battery status"
+      },
+      "blue_back_scatter": {
+        "name": "Blue back scatter"
+      },
+      "blue_front_scatter": {
+        "name": "Blue front scatter"
+      },
+      "board_temp_c": {
+        "name": "Board temperature"
+      },
       "co_alarm_status": {
         "name": "Carbon monoxide alarm status",
         "state": {
@@ -109,6 +121,12 @@
           "pre_alarm": "Pre-alarm",
           "test": "Test"
         }
+      },
+      "co_accumulation": {
+        "name": "Carbon monoxide accumulation"
+      },
+      "co_ppm": {
+        "name": "Carbon monoxide"
       },
       "explosive_gas_alarm_status": {
         "name": "Explosive gas alarm status",
@@ -132,6 +150,36 @@
           "test": "Test"
         }
       },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "humidity_alert_status": {
+        "name": "Humidity alert status"
+      },
+      "ir_back_scatter": {
+        "name": "Infrared back scatter"
+      },
+      "ir_front_scatter": {
+        "name": "Infrared front scatter"
+      },
+      "methane_ppm": {
+        "name": "Methane"
+      },
+      "motion_sensitivity": {
+        "name": "Motion sensitivity"
+      },
+      "night_light_alpha": {
+        "name": "Night light alpha"
+      },
+      "night_light_blue": {
+        "name": "Night light blue"
+      },
+      "night_light_green": {
+        "name": "Night light green"
+      },
+      "night_light_red": {
+        "name": "Night light red"
+      },
       "smoke_alarm_status": {
         "name": "Smoke alarm status",
         "state": {
@@ -143,6 +191,12 @@
           "test": "Test"
         }
       },
+      "temperature_alert_status": {
+        "name": "Temperature alert status"
+      },
+      "temperature_c": {
+        "name": "Temperature"
+      },
       "voc_alarm_status": {
         "name": "VOC alarm status",
         "state": {
@@ -153,6 +207,9 @@
           "pre_alarm": "Pre-alarm",
           "test": "Test"
         }
+      },
+      "wifi_signal_strength": {
+        "name": "Wi-Fi signal strength"
       }
     }
   }
