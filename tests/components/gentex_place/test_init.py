@@ -9,6 +9,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.util.async_ import get_scheduled_timer_handles
 from place import (
@@ -17,6 +18,7 @@ from place import (
     PlaceConnectionError,
     PlaceDiscoveryError,
     PlaceInvalidAuthError,
+    PlaceTimeoutError,
     PlaceTransientAuthError,
 )
 
@@ -27,6 +29,8 @@ from custom_components.gentex_place.const import (
     DOMAIN,
 )
 from tests.components.gentex_place.fakes import (
+    CompletionBlocker,
+    PlatformLifecycleBoundary,
     RecordingConfigEntry,
     install_runtime_fakes,
     make_place_device,
@@ -36,6 +40,11 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _INITIAL_SHADOW_TIME = 100.0
+
+
+def isolate_platform_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep a boundary-focused direct setup test away from platform loading."""
+    monkeypatch.setattr(integration_module, "PLATFORMS", [])
 
 
 def make_entry() -> RecordingConfigEntry:
@@ -56,6 +65,7 @@ async def test_setup_authenticates_from_cache_and_registers_callbacks_before_sta
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     harness = install_runtime_fakes(monkeypatch)
+    isolate_platform_forwarding(monkeypatch)
     entry = make_entry()
     entry.add_to_hass(hass)
 
@@ -83,6 +93,10 @@ async def test_setup_observes_unchanged_initial_shadow_through_public_state(
         ready_on_start=False,
         ready_after_start=True,
         devices=[device],
+    )
+    isolate_platform_forwarding(monkeypatch)
+    monkeypatch.setattr(
+        "custom_components.gentex_place.coordinator._STARTUP_POLL_SECONDS", 0
     )
     entry = make_entry()
     entry.add_to_hass(hass)
@@ -122,6 +136,7 @@ async def test_setup_maps_cache_auth_failures(
         PlaceTransientAuthError("temporary"),
         PlaceDiscoveryError("discovery"),
         PlaceConnectionError("connection"),
+        PlaceTimeoutError("timeout"),
     ],
 )
 async def test_setup_maps_retryable_client_start_failures(
@@ -231,6 +246,7 @@ async def test_setup_accepts_one_answering_device_and_leaves_sibling_unavailable
     harness = install_runtime_fakes(
         monkeypatch, ready_on_start=False, devices=[answering, silent]
     )
+    isolate_platform_forwarding(monkeypatch)
     harness.client.connected = True
     entry = make_entry()
     entry.add_to_hass(hass)
@@ -250,6 +266,7 @@ async def test_unload_cancels_runtime_resources_and_awaits_stop(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     harness = install_runtime_fakes(monkeypatch)
+    isolate_platform_forwarding(monkeypatch)
     entry = make_entry()
     entry.add_to_hass(hass)
     assert await integration_module.async_setup_entry(hass, entry) is True
@@ -276,3 +293,115 @@ async def test_unload_cancels_runtime_resources_and_awaits_stop(
     assert harness.client.event_callbacks == []
     assert harness.client.connection_callbacks == []
     assert harness.client.error_callbacks == []
+
+
+async def test_real_platform_modules_forward_and_load_through_home_assistant(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness = install_runtime_fakes(monkeypatch)
+    entry = make_entry()
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id) is True
+
+    assert entry.state is ConfigEntryState.LOADED
+    assert {"binary_sensor", "sensor"} <= hass.config.components
+    assert entry.runtime_data.coordinator.client is harness.client
+    assert await hass.config_entries.async_unload(entry.entry_id) is True
+    assert harness.client.stop_completed is True
+
+
+async def test_platform_forward_failure_stops_runtime(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = install_runtime_fakes(monkeypatch)
+    forward_error = RuntimeError("platform failed")
+    boundary = PlatformLifecycleBoundary(
+        order=harness.client.order,
+        forward_result=forward_error,
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        boundary.async_forward_entry_setups,
+    )
+    entry = make_entry()
+    entry.add_to_hass(hass)
+
+    with pytest.raises(type(forward_error)):
+        await integration_module.async_setup_entry(hass, entry)
+
+    assert harness.client.stop_completed is True
+    assert harness.client.update_callbacks == []
+    assert harness.client.event_callbacks == []
+    assert harness.client.connection_callbacks == []
+    assert harness.client.error_callbacks == []
+    assert harness.client.order[-2:] == ["forward_platforms", "stop"]
+
+
+async def test_genuine_platform_forward_cancellation_stops_runtime(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = install_runtime_fakes(monkeypatch)
+    blocker = CompletionBlocker()
+    boundary = PlatformLifecycleBoundary(
+        order=harness.client.order,
+        forward_result=blocker,
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        boundary.async_forward_entry_setups,
+    )
+    entry = make_entry()
+    entry.add_to_hass(hass)
+    setup = asyncio.create_task(integration_module.async_setup_entry(hass, entry))
+    await blocker.entered.wait()
+    setup.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await setup
+
+    assert harness.client.stop_completed is True
+    assert harness.client.update_callbacks == []
+    assert harness.client.event_callbacks == []
+    assert harness.client.connection_callbacks == []
+    assert harness.client.error_callbacks == []
+    assert harness.client.order[-2:] == ["forward_platforms", "stop"]
+
+
+async def test_failed_platform_unload_keeps_runtime_until_successful_retry(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness = install_runtime_fakes(monkeypatch)
+    boundary = PlatformLifecycleBoundary(
+        order=harness.client.order,
+        unload_results=[False, True],
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        boundary.async_forward_entry_setups,
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_unload_platforms",
+        boundary.async_unload_platforms,
+    )
+    entry = make_entry()
+    entry.add_to_hass(hass)
+    assert await integration_module.async_setup_entry(hass, entry) is True
+
+    assert await integration_module.async_unload_entry(hass, entry) is False
+    assert harness.client.stop_calls == 0
+    assert harness.client.update_callbacks
+
+    assert await integration_module.async_unload_entry(hass, entry) is True
+    assert harness.client.stop_completed is True
+    assert harness.client.order[-3:] == [
+        "unload_platforms",
+        "unload_platforms",
+        "stop",
+    ]

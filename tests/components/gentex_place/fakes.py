@@ -48,6 +48,19 @@ class CancellationBlocker:
         raise RuntimeError(_BLOCKER_RETURNED)
 
 
+@dataclass
+class CompletionBlocker:
+    """Hold an SDK await until a test explicitly allows completion."""
+
+    entered: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+    release: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+
+    async def wait(self) -> None:
+        """Signal entry and wait for explicit release."""
+        self.entered.set()
+        await self.release.wait()
+
+
 @dataclass(frozen=True)
 class AuthenticationCall:
     """Record a login call without retaining its plain-text password."""
@@ -192,6 +205,9 @@ class FakePlaceClient:
     start_calls: int = 0
     stop_calls: int = 0
     stop_completed: bool = False
+    stop_results: list[
+        BaseException | CancellationBlocker | CompletionBlocker | None
+    ] = field(default_factory=list, repr=False)
     refresh_calls: int = 0
     refresh_result: BaseException | CancellationBlocker | None = None
     update_callbacks: list[Callable[[PlaceDevice], None]] = field(
@@ -234,6 +250,11 @@ class FakePlaceClient:
         """Record an awaited stop call."""
         self.order.append("stop")
         self.stop_calls += 1
+        result = self.stop_results.pop(0) if self.stop_results else None
+        if isinstance(result, (CancellationBlocker, CompletionBlocker)):
+            await result.wait()
+        elif result is not None:
+            raise result
         self.stop_completed = True
 
     def on_update(self, callback_: Callable[[PlaceDevice], None]) -> Callable[[], None]:
@@ -367,6 +388,35 @@ class RuntimeHarness:
     client: FakePlaceClient
 
 
+@dataclass
+class PlatformLifecycleBoundary:
+    """Record integration calls at Home Assistant's platform lifecycle boundary."""
+
+    order: list[str]
+    forward_result: BaseException | CancellationBlocker | CompletionBlocker | None = (
+        None
+    )
+    unload_results: list[bool | BaseException] = field(default_factory=list)
+
+    async def async_forward_entry_setups(
+        self, _entry: object, _platforms: object
+    ) -> None:
+        """Record forwarding and return or raise the configured result."""
+        self.order.append("forward_platforms")
+        if isinstance(self.forward_result, (CancellationBlocker, CompletionBlocker)):
+            await self.forward_result.wait()
+        elif self.forward_result is not None:
+            raise self.forward_result
+
+    async def async_unload_platforms(self, _entry: object, _platforms: object) -> bool:
+        """Record unload and return or raise its next result."""
+        self.order.append("unload_platforms")
+        result = self.unload_results.pop(0) if self.unload_results else True
+        if isinstance(result, BaseException):
+            raise result
+        return result
+
+
 def install_runtime_fakes(  # noqa: PLR0913 - explicit scripts keep cases readable
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -376,6 +426,8 @@ def install_runtime_fakes(  # noqa: PLR0913 - explicit scripts keep cases readab
     ready_after_start: bool = False,
     error_after_start: PlaceError | None = None,
     devices: list[PlaceDevice] | None = None,
+    stop_results: list[BaseException | CancellationBlocker | CompletionBlocker | None]
+    | None = None,
 ) -> RuntimeHarness:
     """Patch the integration's public auth and client construction boundaries."""
     order: list[str] = []
@@ -388,6 +440,7 @@ def install_runtime_fakes(  # noqa: PLR0913 - explicit scripts keep cases readab
         ready_on_start=ready_on_start,
         ready_after_start=ready_after_start,
         error_after_start=error_after_start,
+        stop_results=stop_results or [],
     )
 
     def create_auth(_hass: object, _cache: object) -> FakeCachedAuth:
@@ -399,7 +452,6 @@ def install_runtime_fakes(  # noqa: PLR0913 - explicit scripts keep cases readab
 
     monkeypatch.setattr(integration_module, "create_auth", create_auth)
     monkeypatch.setattr(integration_module, "create_client", create_client)
-    monkeypatch.setattr(integration_module, "PLATFORMS", [])
     return RuntimeHarness(auth=auth, client=client)
 
 

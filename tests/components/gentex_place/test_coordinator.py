@@ -27,6 +27,7 @@ from custom_components.gentex_place.const import MOTION_WINDOW_SECONDS
 from custom_components.gentex_place.coordinator import GentexPlaceCoordinator
 from tests.components.gentex_place.fakes import (
     CancellationBlocker,
+    CompletionBlocker,
     FakePlaceClient,
     RecordingConfigEntry,
     make_place_device,
@@ -38,6 +39,7 @@ if TYPE_CHECKING:
 
 _EXPECTED_PUSH_NOTIFICATIONS = 2
 _EXPECTED_REAUTH_OUTAGES = 2
+_EXPECTED_RETRIED_STOP_CALLS = 2
 
 
 @dataclass
@@ -308,3 +310,56 @@ async def test_programmer_timeout_from_refresh_is_not_remapped(
 
     assert isinstance(coordinator.last_exception, TimeoutError)
     await coordinator.async_shutdown()
+
+
+async def test_concurrent_shutdown_waits_for_the_single_client_stop(
+    hass: HomeAssistant,
+) -> None:
+    coordinator, client, _entry = await start_coordinator(hass)
+    blocker = CompletionBlocker()
+    client.stop_results = [blocker]
+
+    first_shutdown = asyncio.create_task(coordinator.async_shutdown())
+    await blocker.entered.wait()
+    second_shutdown = asyncio.create_task(coordinator.async_shutdown())
+    loop_turn = asyncio.Event()
+    hass.loop.call_soon(loop_turn.set)
+    await loop_turn.wait()
+
+    assert second_shutdown.done() is False
+    blocker.release.set()
+    await asyncio.gather(first_shutdown, second_shutdown)
+    assert client.stop_calls == 1
+    assert client.stop_completed is True
+
+
+async def test_shutdown_retries_client_stop_after_failure(
+    hass: HomeAssistant,
+) -> None:
+    coordinator, client, _entry = await start_coordinator(hass)
+    client.stop_results = [PlaceConnectionError("stop failed"), None]
+
+    with pytest.raises(PlaceConnectionError, match="stop failed"):
+        await coordinator.async_shutdown()
+    await coordinator.async_shutdown()
+
+    assert client.stop_calls == _EXPECTED_RETRIED_STOP_CALLS
+    assert client.stop_completed is True
+
+
+async def test_shutdown_retries_client_stop_after_genuine_cancellation(
+    hass: HomeAssistant,
+) -> None:
+    coordinator, client, _entry = await start_coordinator(hass)
+    blocker = CancellationBlocker()
+    client.stop_results = [blocker, None]
+    cancelled_shutdown = asyncio.create_task(coordinator.async_shutdown())
+    await blocker.entered.wait()
+    cancelled_shutdown.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await cancelled_shutdown
+    await coordinator.async_shutdown()
+
+    assert client.stop_calls == _EXPECTED_RETRIED_STOP_CALLS
+    assert client.stop_completed is True

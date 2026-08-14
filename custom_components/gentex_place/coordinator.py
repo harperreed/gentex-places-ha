@@ -75,7 +75,9 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
         self._starting = False
         self._startup_error: PlaceError | None = None
         self._reauth_requested = False
-        self._stopped = False
+        self._shutdown_lock = asyncio.Lock()
+        self._cleanup_complete = False
+        self._client_stopped = False
         self._refresh_previous_success = self.last_update_success
         self._refresh_previous_data = self.data
 
@@ -229,15 +231,18 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
     @override
     async def async_shutdown(self) -> None:
         """Cancel callbacks and timers, then await SDK client shutdown."""
-        if self._stopped:
-            return
-        self._stopped = True
-        self._starting = False
-        for unsubscribe in self._client_unsubscribers:
-            unsubscribe()
-        self._client_unsubscribers.clear()
-        for cancel in self._motion_timers.values():
-            cancel()
-        self._motion_timers.clear()
-        await super().async_shutdown()
-        await self.client.stop()
+        async with self._shutdown_lock:
+            if self._client_stopped:
+                return
+            if not self._cleanup_complete:
+                self._starting = False
+                for unsubscribe in self._client_unsubscribers:
+                    unsubscribe()
+                self._client_unsubscribers.clear()
+                for cancel in self._motion_timers.values():
+                    cancel()
+                self._motion_timers.clear()
+                await super().async_shutdown()
+                self._cleanup_complete = True
+            await self.client.stop()
+            self._client_stopped = True
