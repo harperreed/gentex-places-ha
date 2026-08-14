@@ -31,3 +31,6 @@
   an existing `CancelledError` handler does not mistake owned cancellation for a new one.
 - Coordinator shutdown marks the client stopped only after `PlaceClient.stop()` returns.
   Serialize concurrent calls and leave a failed or cancelled stop retryable.
+- Home Assistant device identity uses the required PLACE thing name, never the
+  optional device ID. Percent-escape `%`, `_`, and `:` in opaque components before
+  joining them so registry IDs stay stable and collision-free.

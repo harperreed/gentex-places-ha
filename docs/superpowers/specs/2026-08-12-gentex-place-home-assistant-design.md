@@ -303,8 +303,8 @@ needs an explicit disconnected state.
 
 Each `PlaceDevice` becomes one device-registry record:
 
-- identifiers combine the account identity with the SDK device ID when present, else
-  its thing name, so two configured accounts cannot collide;
+- identifiers combine the account identity with the required SDK thing name, so two
+  configured accounts cannot collide and optional device IDs cannot change identity;
 - name uses the discovered device name, falling back to `PLACE device` plus the last
   four characters of its stable identifier;
 - manufacturer is Gentex;
@@ -312,9 +312,10 @@ Each `PlaceDevice` becomes one device-registry record:
 - suggested area uses the discovered location when present; and
 - configuration URL is omitted unless a real, device-specific URL is verified.
 
-Entity unique IDs combine the account identity, stable device identifier, and entity
-description key. Entity names use Home Assistant's entity naming model and
-translations.
+Entity unique IDs combine the account identity, required thing name, and entity
+description key. Percent-escape `%`, `_`, and `:` in each opaque component before
+joining components with `_` for entity unique IDs or `:` for device identifiers.
+Entity names use Home Assistant's entity naming model and translations.
 
 ### 8.1 Safety alarms
 

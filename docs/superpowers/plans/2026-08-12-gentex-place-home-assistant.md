@@ -563,6 +563,11 @@ git commit -m "feat: coordinate PLACE push updates and liveness"
 
 ### Task 4: Shared entity identity and availability
 
+**State:** Complete in commits `e57d20f` and `22ca827`. Doctor Biz chose the
+required thing name as the sole stable device identity; optional device IDs never
+change registry identity. Spec and quality reviews approved. Fresh verification
+passes all 164 integration tests with zero type or lint findings.
+
 **Files:**
 - Create: `custom_components/gentex_place/entity.py`
 - Create: `tests/components/gentex_place/test_entity.py`
@@ -571,13 +576,13 @@ git commit -m "feat: coordinate PLACE push updates and liveness"
 - Consumes: coordinator and SDK `PlaceDevice` metadata.
 - Produces: `GentexPlaceDeviceEntity`, `GentexPlaceAccountEntity`, `stable_device_id(device)`.
 
-- [ ] **Step 1: Write failing identity/device-info tests**
+- [x] **Step 1: Write failing identity/device-info tests**
 
 Assert these exact rules:
 
 ```python
-assert entity.unique_id == "identity-1_device-1_temperature"
-assert entity.device_info.identifiers == {(DOMAIN, "identity-1:device-1")}
+assert entity.unique_id == "identity-1_thing-1_temperature"
+assert entity.device_info.identifiers == {(DOMAIN, "identity-1:thing-1")}
 assert entity.device_info.manufacturer == "Gentex"
 assert entity.device_info.name == "Hallway"
 assert entity.device_info.model == "PL1AS"
@@ -585,19 +590,29 @@ assert entity.device_info.sw_version == "1.2.3"
 assert entity.device_info.suggested_area == "Hallway"
 ```
 
-Also cover thing-name fallback, fallback display name `PLACE device cdef`, normal entity unavailable when account is down or shadow is stale, and connectivity-entity subclasses remaining available while the entry is loaded.
+Also cover identity stability when an optional device ID appears or disappears,
+fallback display name `PLACE device cdef`, percent escaping of `%`, `_`, and `:`,
+normal entity unavailable when account is down or shadow is stale, and
+connectivity-entity subclasses remaining available while the entry is loaded.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `uv run pytest tests/components/gentex_place/test_entity.py -q`
 
 Expected: FAIL because entity base classes are missing.
 
-- [ ] **Step 3: Implement the two base classes**
+- [x] **Step 3: Implement the two base classes**
 
-`GentexPlaceDeviceEntity(CoordinatorEntity[GentexPlaceCoordinator])` sets `_attr_has_entity_name = True`, reads its live device from `coordinator.data[device_key]`, uses account-scoped registry identifiers and unique IDs, and overrides `available` with coordinator device liveness. `GentexPlaceAccountEntity` uses the account identity for unique ID and has no physical `DeviceInfo`. Add a protected `describes_connectivity` flag so connectivity subclasses override `available` to `True` while loaded.
+`GentexPlaceDeviceEntity(CoordinatorEntity[GentexPlaceCoordinator])` sets
+`_attr_has_entity_name = True`, reads its live device from
+`coordinator.data[device_key]`, uses the required thing name for account-scoped
+registry identifiers and unique IDs, percent-escapes opaque identifier components,
+and overrides `available` with coordinator device liveness.
+`GentexPlaceAccountEntity` uses the account identity for unique ID and has no
+physical `DeviceInfo`. Add a protected `describes_connectivity` flag so connectivity
+subclasses override `available` to `True` while loaded.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run:
 
