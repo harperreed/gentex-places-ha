@@ -1,0 +1,39 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This PLACE account is already configured.",
+      "reauth_successful": "Re-authentication was successful.",
+      "wrong_account": "Sign in with the same PLACE account that was originally configured."
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to PLACE. Try again later.",
+      "invalid_auth": "The username or password is invalid.",
+      "invalid_mfa": "The verification code is invalid or expired.",
+      "no_devices": "No PLACE devices were found on this account."
+    },
+    "step": {
+      "mfa": {
+        "data": {
+          "mfa_code": "Verification code"
+        },
+        "description": "Enter the verification code for your PLACE account.",
+        "title": "Verify your PLACE account"
+      },
+      "reauth_confirm": {
+        "data": {
+          "password": "Password"
+        },
+        "description": "Enter the password for {username} to restore the PLACE connection.",
+        "title": "Re-authenticate PLACE"
+      },
+      "user": {
+        "data": {
+          "password": "Password",
+          "username": "Username"
+        },
+        "description": "Enter your Gentex PLACE account credentials.",
+        "title": "Connect to Gentex PLACE"
+      }
+    }
+  }
+}
