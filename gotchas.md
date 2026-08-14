@@ -34,3 +34,6 @@
 - Home Assistant device identity uses the required PLACE thing name, never the
   optional device ID. Percent-escape `%`, `_`, and `:` in opaque components before
   joining them so registry IDs stay stable and collision-free.
+- Tests for live Home Assistant entities must cross the SDK callback boundary and
+  assert loaded state changes. Direct property reads do not prove coordinator
+  listener fan-out or cached-property overrides.

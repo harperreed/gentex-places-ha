@@ -633,6 +633,11 @@ git commit -m "feat: add PLACE entity identity and availability"
 
 ### Task 5: Safety alarm entities
 
+**State:** Complete in commits `a3b13f2` and `9ed07a0`. Spec and quality
+reviews approved. Fresh verification passes 95 focused alarm tests and all 259
+integration tests with zero type or lint findings. The loaded-state regression
+proves push transitions and sibling-device isolation through Home Assistant.
+
 **Files:**
 - Modify: `custom_components/gentex_place/binary_sensor.py`
 - Modify: `custom_components/gentex_place/sensor.py`
@@ -643,7 +648,7 @@ git commit -m "feat: add PLACE entity identity and availability"
 - Consumes: `AlarmStatus`, entity bases, coordinator device map.
 - Produces: six binary alarm entities and six enum-detail entities per supported device value.
 
-- [ ] **Step 1: Write table-driven failing alarm tests**
+- [x] **Step 1: Write table-driven failing alarm tests**
 
 Parameterize all six SDK attributes and device classes:
 
@@ -660,19 +665,21 @@ Parameterize all six SDK attributes and device classes:
 
 For every attribute assert binary `IDLE=False`; `TEST`, `PRE_ALARM`, `ALARM`, `CRITICAL_ALARM`, `HUSHED=True`; `NOT_PRESENT` gives `is_on is None` and entity unavailable. Assert the matching sensor has device class `ENUM`, exact options `idle`, `test`, `pre_alarm`, `alarm`, `critical_alarm`, `hushed`, and `native_value` matching the lowercase enum name.
 
-- [ ] **Step 2: Run and confirm missing platforms**
+- [x] **Step 2: Run and confirm missing platforms**
 
 Run: `uv run pytest tests/components/gentex_place/test_alarms.py -q`
 
 Expected: FAIL because platform entity descriptions are absent.
 
-- [ ] **Step 3: Implement reusable alarm descriptions**
+- [x] **Step 3: Implement reusable alarm descriptions**
 
 Define frozen description subclasses carrying `value_fn: Callable[[PlaceDevice], AlarmStatus]`. Generate binary and enum entity lists from one shared six-item alarm metadata tuple so labels and field mappings cannot drift. Platform `async_setup_entry` adds every alarm description for every discovered device. An initial or later `NOT_PRESENT` value makes that entity unavailable rather than omitting or deleting it.
 
-- [ ] **Step 4: Add translation keys and verify loaded HA states**
+- [x] **Step 4: Add translation keys and verify loaded HA states**
 
-Add English names and enum values to both JSON files. Extend tests to load the config entry and assert registry/state creation, not only Python properties.
+Add English names and enum values to `translations/en.json`. Extend tests to load
+the config entry and assert registry/state creation and live push transitions, not
+only Python properties.
 
 Run:
 
@@ -681,9 +688,9 @@ uv run pytest tests/components/gentex_place/test_alarms.py -q
 uv run basedpyright
 ```
 
-Expected: PASS for all 72 alarm-state cases plus registry assertions.
+Expected: PASS for all 84 alarm property cases plus registry and push assertions.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add custom_components/gentex_place/binary_sensor.py custom_components/gentex_place/sensor.py custom_components/gentex_place/translations/en.json tests/components/gentex_place/test_alarms.py
