@@ -58,7 +58,7 @@ def test_config_entry_token_cache_loads_only_username_and_refresh_token(
     assert result == {"username": "alice", "refresh_token": "old"}
 
 
-def test_config_entry_token_cache_save_changes_only_refresh_token(
+def test_config_entry_token_cache_save_changes_only_refresh_token_for_same_account(
     hass: HomeAssistant,
 ) -> None:
     entry = MockConfigEntry(domain=DOMAIN, data=_entry_data())
@@ -67,13 +67,74 @@ def test_config_entry_token_cache_save_changes_only_refresh_token(
 
     cache.save(
         {
-            "username": "mallory",
+            "username": "alice",
             "refresh_token": "new",
             **SECRET_FIELDS,
         }
     )
 
     assert entry.data == _entry_data(refresh_token="new")
+    assert not SECRET_FIELDS.keys() & entry.data.keys()
+
+
+@pytest.mark.parametrize(
+    "token_data",
+    [
+        {"refresh_token": "new"},
+        {"username": None, "refresh_token": "new"},
+        {"username": 42, "refresh_token": "new"},
+        {"username": "", "refresh_token": "new"},
+        {"username": "mallory", "refresh_token": "new"},
+    ],
+)
+def test_config_entry_token_cache_rejects_token_for_invalid_or_other_account(
+    hass: HomeAssistant, token_data: dict[str, object]
+) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data=_entry_data())
+    entry.add_to_hass(hass)
+
+    ConfigEntryTokenCache(hass, entry).save({**token_data, **SECRET_FIELDS})
+
+    assert entry.data == _entry_data()
+    assert not SECRET_FIELDS.keys() & entry.data.keys()
+
+
+def test_config_entry_token_cache_does_not_save_without_entry_username(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_REFRESH_TOKEN: "old", CONF_ACCOUNT_ID: "acct"},
+    )
+    entry.add_to_hass(hass)
+
+    ConfigEntryTokenCache(hass, entry).save(
+        {"username": "alice", "refresh_token": "new", **SECRET_FIELDS}
+    )
+
+    assert entry.data == {CONF_REFRESH_TOKEN: "old", CONF_ACCOUNT_ID: "acct"}
+    assert not SECRET_FIELDS.keys() & entry.data.keys()
+
+
+@pytest.mark.parametrize("entry_username", [None, 42, ""])
+def test_config_entry_token_cache_does_not_save_for_invalid_entry_username(
+    hass: HomeAssistant, entry_username: object
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "username": entry_username,
+            CONF_REFRESH_TOKEN: "old",
+            CONF_ACCOUNT_ID: "acct",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    ConfigEntryTokenCache(hass, entry).save(
+        {"username": "alice", "refresh_token": "new", **SECRET_FIELDS}
+    )
+
+    assert entry.data[CONF_REFRESH_TOKEN] == "old"
     assert not SECRET_FIELDS.keys() & entry.data.keys()
 
 

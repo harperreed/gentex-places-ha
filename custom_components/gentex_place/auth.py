@@ -70,12 +70,16 @@ class ConfigEntryTokenCache:
 
     def save(self, data: dict[str, Any]) -> None:
         """Update only the refresh token, preserving all durable entry data."""
-        refresh_token = data.get("refresh_token")
-        if not isinstance(refresh_token, str) or not refresh_token:
+        token_data = _valid_token_data(data)
+        entry_username = self._entry.data.get("username")
+        if token_data is None or token_data["username"] != entry_username:
             return
         self._hass.config_entries.async_update_entry(
             self._entry,
-            data={**self._entry.data, CONF_REFRESH_TOKEN: refresh_token},
+            data={
+                **self._entry.data,
+                CONF_REFRESH_TOKEN: token_data["refresh_token"],
+            },
         )
 
     def clear(self) -> None:
