@@ -1,5 +1,5 @@
 <!-- ABOUTME: Plans the HACS-ready Gentex PLACE integration in test-first steps. -->
-<!-- ABOUTME: Starts only after the required PLACE SDK contract is on PyPI. -->
+<!-- ABOUTME: Uses the verified local SDK for development and PyPI for release gates. -->
 # Gentex PLACE Home Assistant Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -17,12 +17,13 @@
 - Minimum supported Home Assistant is `2026.8.1`; Python floor is `3.14.2`. CI tests
   that minimum and a scheduled latest-stable resolver, but does not promise unknown
   future releases before they are tested.
-- The manifest and test environment pin exactly `place-integration-api==0.3.0` from
-  PyPI. An editable clone is useful for SDK work but cannot satisfy this plan's lock or
-  release checks.
-- SDK plan `2026-08-12-place-sdk-auth-contract.md` must land and its verified 0.3.0
-  artifact must reach PyPI before Task 1 begins. Do not fake its public methods or
-  inspect SDK private fields.
+- The manifest always pins exactly `place-integration-api==0.3.0`. During Tasks 1–8,
+  uv resolves that dependency from the non-editable sibling SDK checkout at verified
+  commit `807112d`. This development lock is not a release lock.
+- SDK plan `2026-08-12-place-sdk-auth-contract.md` has landed on the sibling checkout's
+  local `master`. Task 9 may not begin until PyPI serves the same 0.3.0 contract; at
+  that point remove the local uv source and regenerate the lock from PyPI. Do not fake
+  public SDK methods or inspect SDK private fields.
 - First release is read-only: no desired-state publish, commands, control entities, or services.
 - Store username, refresh token, and account identity only. Never persist password, MFA code, access/ID token, temporary AWS keys, or raw payloads.
 - Fixed timings: health refresh 5 minutes; stale timeout 15 minutes; motion window 30 seconds; initial connection/shadow deadline 30 seconds.
@@ -60,11 +61,14 @@ cd /Users/harper/Public/src/personal/gentex-places-ha
 git status --short --branch
 test "$(git branch --show-current)" = "wip/gentex-place-integration"
 uv python install 3.14.2
-uv run --isolated --with place-integration-api==0.3.0 python -c \
-  'from place import CognitoAuth, PlaceClient, PlaceInvalidAuthError, PlaceTransientAuthError'
+test "$(git -C ../place-integration-api rev-parse HEAD)" = \
+  "807112d21e1427f7a246d126736b3ada06c6f2ed"
+uv run --isolated --python 3.14.2 --with ../place-integration-api python -c \
+  'from place import CognitoAuth, PlaceClient, PlaceInvalidAuthError, PlaceTransientAuthError, __version__; assert __version__ == "0.3.0"'
 ```
 
-Expected: the approved spec is committed, only planned files are changed, and PyPI serves SDK `0.3.0` with the required public imports.
+Expected: the approved spec is committed, only planned files are changed, and the
+verified local SDK 0.3.0 exposes the required public imports.
 
 ---
 
@@ -126,6 +130,9 @@ ignore = ["ANN401", "COM812", "D203", "D213"]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"
 include = ["custom_components/gentex_place", "tests"]
+
+[tool.uv.sources]
+place-integration-api = { path = "../place-integration-api", editable = false }
 ```
 
 Create `tests/conftest.py`:
@@ -150,7 +157,8 @@ uv sync
 uv lock
 ```
 
-Expected: dependency resolution succeeds on Python 3.14 and the PyPI SDK reports version `0.3.0`.
+Expected: dependency resolution succeeds on Python 3.14 and the locked non-editable
+local SDK reports version `0.3.0`.
 
 - [ ] **Step 2: Write failing token-cache tests**
 
@@ -873,6 +881,14 @@ git commit -m "feat: add private PLACE diagnostics"
 **Interfaces:**
 - Consumes: complete integration.
 - Produces: one local/CI quality command and HACS/Hassfest checks.
+
+- [ ] **Step 0: Replace the development SDK source with PyPI**
+
+Confirm PyPI serves SDK 0.3.0 with the required public imports. Remove
+`[tool.uv.sources]` from `pyproject.toml`, run `uv lock --refresh-package
+place-integration-api`, and inspect `uv.lock` to prove the SDK source is the registry,
+not a path. Run the full suite before any CI or release claim. Stop here if PyPI 0.3.0
+is unavailable or its wheel contract differs from local commit `807112d`.
 
 - [ ] **Step 1: Add manifest/repository contract tests**
 
