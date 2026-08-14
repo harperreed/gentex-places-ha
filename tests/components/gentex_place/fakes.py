@@ -145,9 +145,11 @@ class PlaceFlowHarness:
     save_token: bool = True
     auth: FakeAuth | None = field(default=None, repr=False)
     client: FakeClient | None = field(default=None, repr=False)
+    token_cache: MemoryTokenCache | None = field(default=None, repr=False)
 
     def create_auth(self, _hass: object, token_cache: MemoryTokenCache) -> FakeAuth:
         """Create the fake auth with the flow-owned token cache."""
+        self.token_cache = token_cache
         self.auth = FakeAuth(
             token_cache=token_cache,
             authenticate_results=list(self.authenticate_results),
@@ -188,10 +190,11 @@ def install_place_fakes(  # noqa: PLR0913 - explicit scripts keep scenarios read
 def make_credentials(identity_id: str = "identity-1") -> Credentials:
     """Build public SDK credentials for a stable test account identity."""
     return Credentials(
-        access_key_id="ACCESS-CANARY",
-        secret_access_key="SECRET-CANARY",
-        session_token="SESSION-CANARY",
+        access_key_id="AWS-ACCESS-CANARY",
+        secret_access_key="AWS-SECRET-CANARY",
+        session_token="AWS-SESSION-CANARY",
         identity_id=identity_id,
+        access_token="ID-TOKEN-CANARY",
     )
 
 

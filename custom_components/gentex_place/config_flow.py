@@ -10,14 +10,13 @@ from typing import TYPE_CHECKING, Any, override
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.data_entry_flow import AbortFlow
 from place import (
     CognitoAuth,
     MfaRequired,
+    PlaceAuthError,
     PlaceClient,
     PlaceDiscoveryError,
     PlaceInvalidAuthError,
-    PlaceTransientAuthError,
 )
 
 from . import auth as auth_helpers
@@ -71,7 +70,7 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except PlaceInvalidAuthError:
             self._clear_flow_state()
             return self._show_user_form("invalid_auth")
-        except PlaceTransientAuthError:
+        except PlaceAuthError:
             self._clear_flow_state()
             return self._show_user_form("cannot_connect")
         except Exception:
@@ -96,7 +95,7 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self._auth.submit_mfa(user_input["mfa_code"])
         except PlaceInvalidAuthError:
             return self._show_mfa_form("invalid_mfa")
-        except PlaceTransientAuthError:
+        except PlaceAuthError:
             return self._show_mfa_form("cannot_connect")
         except Exception:
             self._clear_flow_state()
@@ -136,7 +135,7 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except PlaceInvalidAuthError:
             self._clear_login_state()
             return self._show_reauth_form(username, "invalid_auth")
-        except PlaceTransientAuthError:
+        except PlaceAuthError:
             self._clear_login_state()
             return self._show_reauth_form(username, "cannot_connect")
         except Exception:
@@ -171,43 +170,32 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self._finish_error(error_step, "invalid_auth")
         except _NoDevicesError:
             return self._finish_error(error_step, "no_devices")
-        except PlaceTransientAuthError, PlaceDiscoveryError, _FlowDataError:
+        except PlaceAuthError, PlaceDiscoveryError, _FlowDataError:
             return self._finish_error(error_step, "cannot_connect")
         except Exception:
             self._clear_flow_state()
             raise
 
         reauth_entry = self._reauth_entry
-        await self.async_set_unique_id(identity_id)
-
-        if reauth_entry is not None:
-            try:
-                self._abort_if_unique_id_mismatch(reason="wrong_account")
-            except AbortFlow:
-                self._clear_flow_state()
-                raise
-            result = self.async_update_reload_and_abort(
-                reauth_entry,
-                data_updates={CONF_REFRESH_TOKEN: refresh_token},
-            )
-            self._clear_flow_state()
-            return result
-
         try:
+            await self.async_set_unique_id(identity_id)
+            if reauth_entry is not None:
+                self._abort_if_unique_id_mismatch(reason="wrong_account")
+                return self.async_update_reload_and_abort(
+                    reauth_entry,
+                    data_updates={CONF_REFRESH_TOKEN: refresh_token},
+                )
             self._abort_if_unique_id_configured()
-        except AbortFlow:
+            return self.async_create_entry(
+                title=username,
+                data={
+                    CONF_USERNAME: username,
+                    CONF_REFRESH_TOKEN: refresh_token,
+                    CONF_ACCOUNT_ID: identity_id,
+                },
+            )
+        finally:
             self._clear_flow_state()
-            raise
-        result = self.async_create_entry(
-            title=username,
-            data={
-                CONF_USERNAME: username,
-                CONF_REFRESH_TOKEN: refresh_token,
-                CONF_ACCOUNT_ID: identity_id,
-            },
-        )
-        self._clear_flow_state()
-        return result
 
     async def _async_validate_account(self) -> tuple[str, str, str]:
         """Return a stable account identity and matching cached refresh token."""

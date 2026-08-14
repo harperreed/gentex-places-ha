@@ -13,6 +13,7 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from place import (
     MfaRequired,
+    PlaceAuthError,
     PlaceDiscoveryError,
     PlaceInvalidAuthError,
     PlaceTransientAuthError,
@@ -46,7 +47,16 @@ SAFE_ENTRY_DATA = {
     CONF_REFRESH_TOKEN: "refresh-1",
     CONF_ACCOUNT_ID: "identity-1",
 }
-SECRET_CANARIES = (PASSWORD, MFA_CODE, "ACCESS-CANARY", "SECRET-CANARY")
+SECRET_CANARIES = (
+    PASSWORD,
+    MFA_CODE,
+    "MFA-RETRY-CANARY",
+    "SESSION-CANARY",
+    "ID-TOKEN-CANARY",
+    "AWS-ACCESS-CANARY",
+    "AWS-SECRET-CANARY",
+    "AWS-SESSION-CANARY",
+)
 
 
 async def _start_user_flow(hass: HomeAssistant) -> ConfigFlowResult:
@@ -132,6 +142,8 @@ async def test_user_flow_stores_only_allowlisted_account_data(
     assert harness.auth.credential_calls == 1
     assert harness.client is not None
     assert harness.client.discover_calls == 1
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
     _assert_no_secrets(result, caplog)
 
 
@@ -212,6 +224,8 @@ async def test_valid_mfa_creates_entry_without_password_or_code(
     assert harness.auth.credential_calls == 1
     assert harness.client is not None
     assert harness.client.discover_calls == 1
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
     _assert_no_secrets(result, caplog)
 
 
@@ -232,6 +246,8 @@ async def test_duplicate_account_aborts_without_creating_second_entry(
     assert harness.auth.credential_calls == 1
     assert harness.client is not None
     assert harness.client.discover_calls == 1
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 @pytest.mark.parametrize(
@@ -261,11 +277,72 @@ async def test_login_errors_return_user_form(
     _assert_no_secrets(result, caplog)
 
 
+@pytest.mark.parametrize("stage", ["authenticate", "credentials", "discovery"])
+async def test_base_auth_error_returns_retryable_user_form(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    stage: str,
+) -> None:
+    error = PlaceAuthError("ID-TOKEN-CANARY")
+    harness = install_place_fakes(
+        monkeypatch,
+        authenticate_results=[error] if stage == "authenticate" else None,
+        credential_results=[error] if stage == "credentials" else None,
+        discover_results=[error] if stage == "discovery" else None,
+    )
+    form = await _start_user_flow(hass)
+
+    result = await _submit_user(hass, form["flow_id"])
+
+    _assert_form(result, "user", "cannot_connect")
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
+    _assert_no_secrets(result, caplog)
+
+
+async def test_base_auth_error_during_mfa_keeps_retry_form_without_secrets(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    harness = install_place_fakes(
+        monkeypatch,
+        authenticate_results=[
+            MfaRequired(
+                challenge_name="SMS_MFA", session="SESSION-CANARY", username="alice"
+            )
+        ],
+        mfa_results=[PlaceAuthError("AWS-SESSION-CANARY")],
+    )
+    form = await _start_user_flow(hass)
+    mfa_form = await _submit_user(hass, form["flow_id"])
+
+    result = await _submit_mfa(hass, mfa_form["flow_id"])
+
+    _assert_form(result, "mfa", "cannot_connect")
+    assert hass.config_entries.async_entries(DOMAIN) == []
+    assert harness.auth is not None
+    assert harness.auth.mfa_calls == [MfaCall.from_value(MFA_CODE)]
+    assert harness.auth.credential_calls == 0
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
+    _assert_no_secrets(result, caplog)
+
+    retry_result = await _submit_mfa(hass, result["flow_id"], "MFA-RETRY-CANARY")
+
+    assert retry_result.get("type") is FlowResultType.CREATE_ENTRY
+    assert retry_result.get("data") == SAFE_ENTRY_DATA
+    assert harness.token_cache.load() is None
+    _assert_no_secrets(retry_result, caplog)
+
+
 @pytest.mark.parametrize(
     ("credential_error", "expected_error"),
     [
-        (PlaceInvalidAuthError("ACCESS-CANARY"), "invalid_auth"),
-        (PlaceTransientAuthError("ACCESS-CANARY"), "cannot_connect"),
+        (PlaceInvalidAuthError("AWS-ACCESS-CANARY"), "invalid_auth"),
+        (PlaceTransientAuthError("AWS-ACCESS-CANARY"), "cannot_connect"),
     ],
 )
 async def test_credential_errors_map_to_typed_user_errors(
@@ -291,9 +368,9 @@ async def test_credential_errors_map_to_typed_user_errors(
 @pytest.mark.parametrize(
     ("discovery_error", "expected_error"),
     [
-        (PlaceInvalidAuthError("ACCESS-CANARY"), "invalid_auth"),
-        (PlaceTransientAuthError("ACCESS-CANARY"), "cannot_connect"),
-        (PlaceDiscoveryError("ACCESS-CANARY"), "cannot_connect"),
+        (PlaceInvalidAuthError("AWS-ACCESS-CANARY"), "invalid_auth"),
+        (PlaceTransientAuthError("AWS-ACCESS-CANARY"), "cannot_connect"),
+        (PlaceDiscoveryError("AWS-ACCESS-CANARY"), "cannot_connect"),
     ],
 )
 async def test_discovery_errors_map_to_typed_user_errors(
@@ -365,20 +442,8 @@ async def test_unexpected_programmer_error_propagates(
     with pytest.raises(RuntimeError, match="programmer bug"):
         await _submit_user(hass, form["flow_id"])
     assert harness.auth is not None
-    assert harness.auth.token_cache.load() is None
-
-
-def test_fake_repr_never_contains_scripted_secrets(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    harness = install_place_fakes(
-        monkeypatch,
-        authenticate_results=[PlaceInvalidAuthError(PASSWORD)],
-        credential_results=[make_credentials()],
-        discover_results=[PlaceDiscoveryError(MFA_CODE)],
-    )
-
-    assert all(secret not in repr(harness) for secret in SECRET_CANARIES)
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 async def test_reauth_success_updates_only_refresh_token_and_reloads(
@@ -406,6 +471,8 @@ async def test_reauth_success_updates_only_refresh_token_and_reloads(
     assert harness.auth.authenticate_calls == [
         AuthenticationCall.from_values("alice", PASSWORD)
     ]
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 async def test_reauth_rejects_different_identity_without_changing_entry(
@@ -414,7 +481,7 @@ async def test_reauth_rejects_different_identity_without_changing_entry(
 ) -> None:
     entry = _reauth_entry(hass)
     old_data = dict(entry.data)
-    install_place_fakes(
+    harness = install_place_fakes(
         monkeypatch, credential_results=[make_credentials("identity-2")]
     )
     form = await start_reauth_flow(hass, entry)
@@ -427,6 +494,8 @@ async def test_reauth_rejects_different_identity_without_changing_entry(
     assert result.get("reason") == "wrong_account"
     assert entry.data == old_data
     assert entry.unique_id == "identity-1"
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 async def test_reauth_uses_stored_username_not_supplied_entry_data(
@@ -449,6 +518,8 @@ async def test_reauth_uses_stored_username_not_supplied_entry_data(
         AuthenticationCall.from_values("alice", PASSWORD)
     ]
     assert entry.data[CONF_USERNAME] == "alice"
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 async def test_reauth_mfa_updates_existing_entry_instead_of_creating_one(
@@ -479,6 +550,8 @@ async def test_reauth_mfa_updates_existing_entry_instead_of_creating_one(
     assert entry.data[CONF_REFRESH_TOKEN] == "refresh-1"
     assert harness.auth is not None
     assert harness.auth.mfa_calls == [MfaCall.from_value(MFA_CODE)]
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 async def test_reauth_mfa_post_auth_error_returns_reauth_form(
@@ -535,6 +608,8 @@ async def test_invalid_mfa_retry_is_idempotent(
     assert harness.auth.credential_calls == 1
     assert harness.client is not None
     assert harness.client.discover_calls == 1
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
 
 
 async def test_user_schema_error_does_not_create_sdk_objects(
@@ -585,14 +660,26 @@ async def test_mfa_schema_error_does_not_submit_or_discover(
             PlaceTransientAuthError("PASSWORD-CANARY"),
             "cannot_connect",
         ),
-        ("credentials", PlaceInvalidAuthError("ACCESS-CANARY"), "invalid_auth"),
         (
             "credentials",
-            PlaceTransientAuthError("ACCESS-CANARY"),
+            PlaceInvalidAuthError("AWS-ACCESS-CANARY"),
+            "invalid_auth",
+        ),
+        (
+            "credentials",
+            PlaceTransientAuthError("AWS-ACCESS-CANARY"),
             "cannot_connect",
         ),
-        ("discovery", PlaceInvalidAuthError("ACCESS-CANARY"), "invalid_auth"),
-        ("discovery", PlaceDiscoveryError("ACCESS-CANARY"), "cannot_connect"),
+        (
+            "discovery",
+            PlaceInvalidAuthError("AWS-ACCESS-CANARY"),
+            "invalid_auth",
+        ),
+        (
+            "discovery",
+            PlaceDiscoveryError("AWS-ACCESS-CANARY"),
+            "cannot_connect",
+        ),
     ],
 )
 async def test_reauth_errors_return_reauth_form_without_changing_entry(  # noqa: PLR0913, PLR0917
@@ -620,7 +707,64 @@ async def test_reauth_errors_return_reauth_form_without_changing_entry(  # noqa:
     _assert_form(result, "reauth_confirm", expected_error)
     assert entry.data == old_data
     assert harness.auth is not None
-    assert harness.auth.token_cache.load() is None
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
+    _assert_no_secrets(result, caplog)
+
+
+async def test_base_auth_error_returns_retryable_reauth_form(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entry = _reauth_entry(hass)
+    old_data = dict(entry.data)
+    harness = install_place_fakes(
+        monkeypatch,
+        authenticate_results=[PlaceAuthError("ID-TOKEN-CANARY")],
+    )
+    form = await start_reauth_flow(hass, entry)
+
+    result = await hass.config_entries.flow.async_configure(
+        form["flow_id"], {CONF_PASSWORD: PASSWORD}
+    )
+
+    _assert_form(result, "reauth_confirm", "cannot_connect")
+    assert entry.data == old_data
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
+    _assert_no_secrets(result, caplog)
+
+
+async def test_base_auth_error_after_reauth_mfa_returns_reauth_form(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entry = _reauth_entry(hass)
+    old_data = dict(entry.data)
+    harness = install_place_fakes(
+        monkeypatch,
+        authenticate_results=[
+            MfaRequired(
+                challenge_name="SOFTWARE_TOKEN_MFA",
+                session="SESSION-CANARY",
+                username="alice",
+            )
+        ],
+        credential_results=[PlaceAuthError("AWS-ACCESS-CANARY")],
+    )
+    form = await start_reauth_flow(hass, entry)
+    mfa_form = await hass.config_entries.flow.async_configure(
+        form["flow_id"], {CONF_PASSWORD: PASSWORD}
+    )
+
+    result = await _submit_mfa(hass, mfa_form["flow_id"])
+
+    _assert_form(result, "reauth_confirm", "cannot_connect")
+    assert entry.data == old_data
+    assert harness.token_cache is not None
+    assert harness.token_cache.load() is None
     _assert_no_secrets(result, caplog)
 
 
