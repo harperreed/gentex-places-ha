@@ -701,16 +701,21 @@ git commit -m "feat: expose detailed PLACE safety alarms"
 
 ### Task 6: Motion, connectivity, health, and mode binary sensors
 
+**State:** Complete in commits `f64a45d` and `bfaad2f`. Spec and quality
+reviews approved. Fresh verification passes all 303 integration tests with zero
+type or lint findings. Loaded-state tests exposed and now prevent motion timer
+callbacks from writing entity state through an executor thread.
+
 **Files:**
 - Modify: `custom_components/gentex_place/binary_sensor.py`
-- Modify: translation JSON files
+- Modify: `custom_components/gentex_place/translations/en.json`
 - Create: `tests/components/gentex_place/test_binary_sensor.py`
 
 **Interfaces:**
 - Consumes: coordinator `motion_active`, account/device availability, SDK booleans and health maps.
 - Produces: account/device connectivity, motion, battery warning, chatty mode, alerts, faults, end-of-life, and night-light state.
 
-- [ ] **Step 1: Write failing entity-matrix tests**
+- [x] **Step 1: Write failing entity-matrix tests**
 
 Assert these mappings and values:
 
@@ -729,13 +734,13 @@ Assert these mappings and values:
 
 Assert false is preserved and every description creates an enabled entity even when its initial value is absent.
 
-- [ ] **Step 2: Run and confirm failure**
+- [x] **Step 2: Run and confirm failure**
 
 Run: `uv run pytest tests/components/gentex_place/test_binary_sensor.py -q`
 
 Expected: FAIL on missing descriptions/entities.
 
-- [ ] **Step 3: Implement descriptions and health evaluation**
+- [x] **Step 3: Implement descriptions and health evaluation**
 
 Use one pure helper:
 
@@ -753,7 +758,7 @@ def health_problem(value: dict[str, object] | None) -> bool | None:
 
 Do not treat `bool` as numeric. Entity extra attributes return a shallow copy of the SDK mapping. Connectivity entities use the base-class exception from Task 4.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run:
 

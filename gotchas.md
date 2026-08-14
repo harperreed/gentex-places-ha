@@ -37,3 +37,6 @@
 - Tests for live Home Assistant entities must cross the SDK callback boundary and
   assert loaded state changes. Direct property reads do not prove coordinator
   listener fan-out or cached-property overrides.
+- Mark `async_call_later` actions that touch Home Assistant state with `@callback`.
+  An unmarked callable becomes an executor job, where coordinator listeners cannot
+  safely write entity state.
