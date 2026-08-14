@@ -9,6 +9,7 @@ from homeassistant.const import Platform
 
 DOMAIN = "gentex_place"
 MANUFACTURER = "Gentex"
+ENTRY_TITLE = "Gentex PLACE"
 CONF_ACCOUNT_ID = "account_id"
 CONF_REFRESH_TOKEN = "refresh_token"  # noqa: S105 - configuration key, not a secret
 PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]

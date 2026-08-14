@@ -20,7 +20,7 @@ from place import (
 )
 
 from .auth import ConfigEntryTokenCache, create_auth, create_client
-from .const import PLATFORMS
+from .const import ENTRY_TITLE, PLATFORMS
 from .coordinator import GentexPlaceCoordinator, StartupTimeoutError
 
 if TYPE_CHECKING:
@@ -37,24 +37,37 @@ class GentexPlaceRuntimeData:
 type GentexPlaceConfigEntry = ConfigEntry[GentexPlaceRuntimeData]
 
 
+def _raise_setup_error(
+    error: ConfigEntryAuthFailed | ConfigEntryNotReady | None,
+) -> None:
+    """Raise a sanitized setup error after leaving the raw SDK handler."""
+    if error is not None:
+        raise error
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: GentexPlaceConfigEntry) -> bool:
     """Authenticate from the stored refresh token and start one account runtime."""
+    if entry.title != ENTRY_TITLE:
+        hass.config_entries.async_update_entry(entry, title=ENTRY_TITLE)
     token_cache = ConfigEntryTokenCache(hass, entry)
     auth = create_auth(hass, token_cache)
     username = entry.data["username"]
+    setup_error: ConfigEntryAuthFailed | ConfigEntryNotReady | None = None
     try:
         await auth.authenticate_from_cache(username)
     except PlaceInvalidAuthError as err:
-        raise ConfigEntryAuthFailed from err
+        setup_error = ConfigEntryAuthFailed(type(err).__name__)
     except PlaceAuthError as err:
-        raise ConfigEntryNotReady from err
+        setup_error = ConfigEntryNotReady(type(err).__name__)
+    _raise_setup_error(setup_error)
 
     client = create_client(auth)
     coordinator = GentexPlaceCoordinator(hass, entry, client)
+    setup_error = None
     try:
         await coordinator.async_start()
     except PlaceInvalidAuthError as err:
-        raise ConfigEntryAuthFailed from err
+        setup_error = ConfigEntryAuthFailed(type(err).__name__)
     except (
         PlaceAuthError,
         PlaceConnectionError,
@@ -62,7 +75,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: GentexPlaceConfigEntry) 
         PlaceTimeoutError,
         StartupTimeoutError,
     ) as err:
-        raise ConfigEntryNotReady from err
+        setup_error = ConfigEntryNotReady(type(err).__name__)
+    _raise_setup_error(setup_error)
 
     entry.runtime_data = GentexPlaceRuntimeData(coordinator=coordinator)
     if PLATFORMS:

@@ -135,10 +135,13 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
         """Request one shadow refresh covering every discovered device."""
         self._refresh_previous_success = self.last_update_success
         self._refresh_previous_data = self.data
+        update_error: UpdateFailed | None = None
         try:
             await self.client.async_refresh_shadow()
-        except PlaceConnectionError as err:
-            raise UpdateFailed(_DISCONNECTED_UPDATE) from err
+        except PlaceConnectionError:
+            update_error = UpdateFailed(_DISCONNECTED_UPDATE)
+        if update_error is not None:
+            raise update_error
         return self.client.devices
 
     @callback

@@ -184,7 +184,7 @@ async def test_user_flow_stores_only_allowlisted_account_data(
     result = await _submit_user(hass, form["flow_id"])
 
     assert result.get("type") is FlowResultType.CREATE_ENTRY
-    assert result.get("title") == "alice"
+    assert result.get("title") == "Gentex PLACE"
     assert result.get("data") == SAFE_ENTRY_DATA
     assert harness.auth is not None
     assert harness.auth.authenticate_calls == [
@@ -624,7 +624,7 @@ async def test_no_devices_retry_can_use_a_different_account(
     )
 
     assert result.get("type") is FlowResultType.CREATE_ENTRY
-    assert result.get("title") == "different-account"
+    assert result.get("title") == "Gentex PLACE"
     assert result.get("data") == {
         **SAFE_ENTRY_DATA,
         CONF_USERNAME: "different-account",
