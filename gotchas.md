@@ -48,3 +48,6 @@
 - PLACE account titles use the lowest free generic ordinal, while an existing safe
   ordinal stays stable. Concurrent flows can choose the same cosmetic title, but the
   account unique ID remains the duplicate-account authority.
+- PyPI currently serves the official PLACE SDK through `0.2.4`, but this integration
+  requires the local `0.3.0` contract. Keep the sibling uv source until Doctor Biz
+  authorizes a compatible release or a different packaging design.

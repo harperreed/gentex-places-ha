@@ -921,6 +921,11 @@ git commit -m "feat: add private PLACE diagnostics"
 
 ### Task 9: Canonical checks and CI validation
 
+**State:** Blocked at Step 0 on 2026-08-14. PyPI serves the official SDK only
+through `0.2.4`; the required `0.3.0` endpoint returns 404. Doctor Biz does not
+want to publish `0.3.0` now, so the local sibling source remains in `pyproject.toml`
+and `uv.lock`. Do not add a CI workflow that cannot resolve its pinned dependency.
+
 **Files:**
 - Create: `scripts/check`
 - Create: `.github/workflows/validate.yml`
