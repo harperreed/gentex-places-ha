@@ -26,3 +26,8 @@
 - Home Assistant 2026.8.1 exact-pins vulnerable `cryptography==48.0.1`. Do not force a
   newer cryptography over that pin; move to a fixed supported HA release or record an
   explicit risk exception before release, then rerun `pip-audit`.
+- SDK shutdown must consume cancellation from its owned MQTT task while preserving a
+  new caller cancellation. Snapshot the caller's cancellation count so cleanup inside
+  an existing `CancelledError` handler does not mistake owned cancellation for a new one.
+- Coordinator shutdown marks the client stopped only after `PlaceClient.stop()` returns.
+  Serialize concurrent calls and leave a failed or cancelled stop retryable.

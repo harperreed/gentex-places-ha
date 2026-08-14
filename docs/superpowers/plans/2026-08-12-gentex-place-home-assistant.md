@@ -19,7 +19,7 @@
   future releases before they are tested.
 - The manifest always pins exactly `place-integration-api==0.3.0`. During Tasks 1–8,
   uv resolves that dependency from the non-editable sibling SDK checkout at verified
-  commit `ac9bf45`. This development lock is not a release lock.
+  commit `7f9f6bb`. This development lock is not a release lock.
 - SDK plan `2026-08-12-place-sdk-auth-contract.md` has landed on the sibling checkout's
   local `master`. Task 9 may not begin until PyPI serves the same 0.3.0 contract; at
   that point remove the local uv source and regenerate the lock from PyPI. Do not fake
@@ -62,7 +62,7 @@ git status --short --branch
 test "$(git branch --show-current)" = "wip/gentex-place-integration"
 uv python install 3.14.2
 test "$(git -C ../place-integration-api rev-parse HEAD)" = \
-  "ac9bf456db9c163db8027e7826e4434e44719d84"
+  "7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"
 uv run --isolated --python 3.14.2 --with ../place-integration-api python -c \
   'from place import CognitoAuth, PlaceClient, PlaceInvalidAuthError, PlaceTransientAuthError, __version__; assert __version__ == "0.3.0"'
 ```
@@ -74,7 +74,7 @@ verified local SDK 0.3.0 exposes the required public imports.
 
 ### Task 1: Reproducible project and token store
 
-**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality reviews approved. Development uses local SDK `ac9bf45`.
+**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality reviews approved. Development uses local SDK `7f9f6bb`.
 
 **Files:**
 - Create: `pyproject.toml`
@@ -455,9 +455,13 @@ git commit -m "feat: add PLACE account setup and reauth"
 
 ### Task 3: Coordinator lifecycle, push updates, and health timing
 
+**State:** Complete in HA commits `45293e7` and `0c29032`, with SDK shutdown-cancellation fixes in `14b64d6` and `7f9f6bb`. Spec and quality reviews approved. Fresh verification passes 145 HA tests and 237 SDK tests; both type and lint gates report zero findings.
+
 **Files:**
 - Modify: `custom_components/gentex_place/__init__.py`
 - Create: `custom_components/gentex_place/coordinator.py`
+- Create: `custom_components/gentex_place/binary_sensor.py` (loadable staged entry point)
+- Create: `custom_components/gentex_place/sensor.py` (loadable staged entry point)
 - Modify: `tests/components/gentex_place/fakes.py`
 - Create: `tests/components/gentex_place/test_init.py`
 - Create: `tests/components/gentex_place/test_coordinator.py`
@@ -466,7 +470,7 @@ git commit -m "feat: add PLACE account setup and reauth"
 - Consumes: `authenticate_from_cache`, `PlaceClient.start/stop`, `devices`, `connected`, `on_update`, `on_event`, `on_connection_change`, `on_error`, `async_refresh_shadow`.
 - Produces: `GentexPlaceRuntimeData`, `GentexPlaceConfigEntry`, `GentexPlaceCoordinator`, `device_available()`, `motion_active()`, setup/unload.
 
-- [ ] **Step 1: Add lifecycle and timer tests**
+- [x] **Step 1: Add lifecycle and timer tests**
 
 Write tests using a `FakePlaceClient` that owns real SDK `PlaceDevice` objects and explicit emit methods. Cover:
 
@@ -487,7 +491,7 @@ Write tests using a `FakePlaceClient` that owns real SDK `PlaceDevice` objects a
 
 Patch monotonic time and Home Assistant's time helpers; do not sleep in tests.
 
-- [ ] **Step 2: Run and confirm missing coordinator/lifecycle**
+- [x] **Step 2: Run and confirm missing coordinator/lifecycle**
 
 Run:
 
@@ -497,7 +501,7 @@ uv run pytest tests/components/gentex_place/test_init.py tests/components/gentex
 
 Expected: FAIL on missing runtime/coordinator code.
 
-- [ ] **Step 3: Implement typed runtime data and setup**
+- [x] **Step 3: Implement typed runtime data and setup**
 
 In `coordinator.py`:
 
@@ -536,7 +540,7 @@ type GentexPlaceConfigEntry = ConfigEntry[GentexPlaceRuntimeData]
 
 `async_setup_entry` authenticates from cache, starts coordinator/client, assigns `entry.runtime_data`, and forwards `PLATFORMS`. `async_unload_entry` unloads platforms first, then calls coordinator shutdown when successful.
 
-- [ ] **Step 4: Verify exact timing and cleanup**
+- [x] **Step 4: Verify exact timing and cleanup**
 
 Run:
 
@@ -548,7 +552,7 @@ uv run basedpyright
 
 Expected: PASS; no pending-task warning appears after unload tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add custom_components/gentex_place/__init__.py custom_components/gentex_place/coordinator.py tests/components/gentex_place
@@ -615,8 +619,8 @@ git commit -m "feat: add PLACE entity identity and availability"
 ### Task 5: Safety alarm entities
 
 **Files:**
-- Create: `custom_components/gentex_place/binary_sensor.py`
-- Create: `custom_components/gentex_place/sensor.py`
+- Modify: `custom_components/gentex_place/binary_sensor.py`
+- Modify: `custom_components/gentex_place/sensor.py`
 - Modify: `custom_components/gentex_place/translations/en.json`
 - Create: `tests/components/gentex_place/test_alarms.py`
 
@@ -892,7 +896,7 @@ Confirm PyPI serves SDK 0.3.0 with the required public imports. Remove
 `[tool.uv.sources]` from `pyproject.toml`, run `uv lock --refresh-package
 place-integration-api`, and inspect `uv.lock` to prove the SDK source is the registry,
 not a path. Run the full suite before any CI or release claim. Stop here if PyPI 0.3.0
-is unavailable or its wheel contract differs from local commit `ac9bf45`.
+is unavailable or its wheel contract differs from local commit `7f9f6bb`.
 
 - [ ] **Step 1: Add manifest/repository contract tests**
 
