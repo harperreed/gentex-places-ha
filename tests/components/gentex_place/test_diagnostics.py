@@ -132,6 +132,22 @@ def _assert_canaries_absent(serialized: str, canaries: Sequence[str]) -> None:
         assert canary not in serialized
 
 
+def _direct_object_state(value: object) -> tuple[dict[str, object], list[object]]:
+    """Return direct instance-dict and slot values without walking object graphs."""
+    instance_values = vars(value)
+    slot_values: list[object] = []
+    for owner in type(value).__mro__:
+        slots = owner.__dict__.get("__slots__", ())
+        if isinstance(slots, str):
+            slots = (slots,)
+        slot_values.extend(
+            getattr(value, slot)
+            for slot in slots
+            if slot not in {"__dict__", "__weakref__"} and hasattr(value, slot)
+        )
+    return instance_values, slot_values
+
+
 def _private_entry() -> RecordingConfigEntry:
     """Build one config entry containing distinct private canaries."""
     return RecordingConfigEntry(
@@ -286,6 +302,45 @@ async def test_diagnostics_are_fresh_exact_allow_list_without_private_canaries(
     assert harness.client.stop_completed is True
 
 
+async def test_setup_migrates_legacy_title_before_failure_logging(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error_canary = "PRIVATE_LEGACY_SETUP_ERROR_771C"
+    install_runtime_fakes(
+        monkeypatch,
+        auth_result=PlaceTransientAuthError(error_canary),
+    )
+    monkeypatch.setattr(integration_module, "PLATFORMS", [])
+    first_entry = RecordingConfigEntry(
+        domain=DOMAIN,
+        title="Gentex PLACE",
+        unique_id="safe-existing-account",
+        data={
+            "username": "safe-existing-user",
+            CONF_REFRESH_TOKEN: "safe-existing-refresh",
+            CONF_ACCOUNT_ID: "safe-existing-account",
+        },
+    )
+    first_entry.add_to_hass(hass)
+    entry = _private_entry()
+    entry.add_to_hass(hass)
+    caplog.set_level(logging.DEBUG)
+
+    assert await hass.config_entries.async_setup(entry.entry_id) is False
+    await hass.async_block_till_done()
+
+    assert entry.title == "Gentex PLACE 2"
+    serialized = _serialized_logs(caplog)
+    _assert_canaries_absent(
+        serialized,
+        (*_ALL_CANARIES, error_canary),
+    )
+    assert "Gentex PLACE 2" in serialized
+    assert "PlaceTransientAuthError" in serialized
+
+
 @pytest.mark.parametrize("setup_case", SETUP_ERROR_CASES)
 async def test_setup_error_boundaries_never_log_exception_messages(
     hass: HomeAssistant,
@@ -329,6 +384,43 @@ async def test_setup_error_boundaries_never_log_exception_messages(
     serialized = _serialized_logs(caplog)
     _assert_canaries_absent(serialized, (*_ALL_CANARIES, canary))
     assert error_type.__name__ in serialized
+
+
+async def test_callback_startup_error_is_not_reachable_from_public_traceback(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    canary = "PRIVATE_REACHABLE_CALLBACK_ERROR_82D4"
+    raw_error = PlaceTransientAuthError(canary)
+    _install_setup_error_boundary(monkeypatch, "callback", raw_error)
+    monkeypatch.setattr(integration_module, "PLATFORMS", [])
+    entry = _private_entry()
+    entry.add_to_hass(hass)
+
+    with pytest.raises(ConfigEntryNotReady) as error_info:
+        await integration_module.async_setup_entry(hass, entry)
+
+    public_error = error_info.value
+    coordinator_values: list[object] = []
+    current_traceback = public_error.__traceback__
+    while current_traceback is not None:
+        coordinator = current_traceback.tb_frame.f_locals.get("coordinator")
+        if coordinator is not None:
+            coordinator_values.append(coordinator)
+        current_traceback = current_traceback.tb_next
+
+    assert len(coordinator_values) == 1
+    instance_state, slot_values = _direct_object_state(coordinator_values[0])
+    direct_values = (*instance_state.values(), *slot_values)
+    assert instance_state.get("_startup_error") is None
+    assert raw_error not in direct_values
+    assert all(
+        canary not in str(value)
+        for value in direct_values
+        if isinstance(value, PlaceError | str)
+    )
+    assert public_error.__cause__ is None
+    assert public_error.__context__ is None
 
 
 async def test_coordinator_error_boundaries_never_log_exception_messages(

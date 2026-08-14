@@ -24,7 +24,7 @@ from place import (
 
 from . import auth as auth_helpers
 from .auth import MemoryTokenCache
-from .const import CONF_ACCOUNT_ID, CONF_REFRESH_TOKEN, DOMAIN, ENTRY_TITLE
+from .const import CONF_ACCOUNT_ID, CONF_REFRESH_TOKEN, DOMAIN, safe_entry_title
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Mapping
@@ -203,7 +203,10 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             self._abort_if_unique_id_configured()
             return self.async_create_entry(
-                title=ENTRY_TITLE,
+                title=safe_entry_title(
+                    entry.title
+                    for entry in self.hass.config_entries.async_entries(DOMAIN)
+                ),
                 data={
                     CONF_USERNAME: username,
                     CONF_REFRESH_TOKEN: refresh_token,

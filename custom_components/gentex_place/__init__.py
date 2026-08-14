@@ -20,7 +20,7 @@ from place import (
 )
 
 from .auth import ConfigEntryTokenCache, create_auth, create_client
-from .const import ENTRY_TITLE, PLATFORMS
+from .const import DOMAIN, PLATFORMS, safe_entry_title
 from .coordinator import GentexPlaceCoordinator, StartupTimeoutError
 
 if TYPE_CHECKING:
@@ -47,8 +47,15 @@ def _raise_setup_error(
 
 async def async_setup_entry(hass: HomeAssistant, entry: GentexPlaceConfigEntry) -> bool:
     """Authenticate from the stored refresh token and start one account runtime."""
-    if entry.title != ENTRY_TITLE:
-        hass.config_entries.async_update_entry(entry, title=ENTRY_TITLE)
+    entry_title = safe_entry_title(
+        (
+            existing_entry.title
+            for existing_entry in hass.config_entries.async_entries(DOMAIN)
+        ),
+        current_title=entry.title,
+    )
+    if entry.title != entry_title:
+        hass.config_entries.async_update_entry(entry, title=entry_title)
     token_cache = ConfigEntryTokenCache(hass, entry)
     auth = create_auth(hass, token_cache)
     username = entry.data["username"]

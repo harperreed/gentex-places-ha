@@ -43,3 +43,8 @@
 - Give `SensorStateClass.MEASUREMENT` only to fields with verified physical units.
   Raw battery, alert, optical, sensitivity, and light-channel values need no invented
   unit or statistics meaning.
+- Consume startup callback errors before raising them and clear coordinator storage
+  at start and shutdown; a sanitized exception traceback can expose coordinator locals.
+- PLACE account titles use the lowest free generic ordinal, while an existing safe
+  ordinal stays stable. Concurrent flows can choose the same cosmetic title, but the
+  account unique ID remains the duplicate-account authority.

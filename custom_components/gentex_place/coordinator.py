@@ -84,6 +84,7 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
 
     async def async_start(self) -> None:
         """Register callbacks, start the client, and await public readiness state."""
+        self._startup_error = None
         self._starting = True
         self._client_unsubscribers = [
             self.client.on_update(self._handle_update),
@@ -114,7 +115,9 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
         """Observe public client state until one device has answered a shadow get."""
         while True:
             if self._startup_error is not None:
-                raise self._startup_error
+                startup_error = self._startup_error
+                self._startup_error = None
+                raise startup_error
             devices = self.client.devices
             if self.client.connected and any(
                 device.last_shadow_at is not None for device in devices.values()
@@ -241,6 +244,7 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
     async def async_shutdown(self) -> None:
         """Cancel callbacks and timers, then await SDK client shutdown."""
         async with self._shutdown_lock:
+            self._startup_error = None
             if self._client_stopped:
                 return
             if not self._cleanup_complete:

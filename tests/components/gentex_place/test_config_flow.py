@@ -30,6 +30,7 @@ from custom_components.gentex_place.const import (
     CONF_ACCOUNT_ID,
     CONF_REFRESH_TOKEN,
     DOMAIN,
+    safe_entry_title,
 )
 from tests.components.gentex_place.fakes import (
     AuthenticationCall,
@@ -64,6 +65,12 @@ SECRET_CANARIES = (
     "AWS-SESSION-CANARY",
     "REMOVAL-TOKEN-CANARY",
 )
+
+
+def test_legacy_ordinal_shaped_title_does_not_require_integer_parsing() -> None:
+    legacy_title = f"Gentex PLACE {'9' * 5000}"
+
+    assert safe_entry_title([], current_title=legacy_title) == legacy_title
 
 
 def _capture_next_flow(
@@ -154,12 +161,13 @@ def _reauth_entry(
     hass: HomeAssistant,
     *,
     unique_id: str = "identity-1",
+    title: str = "Alice's PLACE",
     data: dict[str, Any] | None = None,
 ) -> MockConfigEntry:
     """Add an existing PLACE entry for reauthentication tests."""
     entry = MockConfigEntry(
         domain=DOMAIN,
-        title="Alice's PLACE",
+        title=title,
         unique_id=unique_id,
         data=data
         or {
@@ -171,6 +179,74 @@ def _reauth_entry(
     )
     entry.add_to_hass(hass)
     return entry
+
+
+@pytest.mark.parametrize(
+    ("existing_titles", "identity_id", "expected_title"),
+    [
+        (["Gentex PLACE"], "identity-2", "Gentex PLACE 2"),
+        (
+            ["Gentex PLACE", "Gentex PLACE 2"],
+            "identity-3",
+            "Gentex PLACE 3",
+        ),
+    ],
+)
+async def test_new_accounts_use_next_safe_ordinal_title(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    existing_titles: list[str],
+    identity_id: str,
+    expected_title: str,
+) -> None:
+    for index, title in enumerate(existing_titles, start=1):
+        _reauth_entry(hass, unique_id=f"existing-{index}", title=title)
+    install_place_fakes(
+        monkeypatch,
+        credential_results=[make_credentials(identity_id)],
+    )
+    form = await _start_user_flow(hass)
+
+    result = await _submit_user(hass, form["flow_id"])
+
+    assert result.get("type") is FlowResultType.CREATE_ENTRY
+    assert result.get("title") == expected_title
+    created_entry = result.get("result")
+    assert created_entry is not None
+    assert created_entry.unique_id == identity_id
+    assert created_entry.data == {
+        **SAFE_ENTRY_DATA,
+        CONF_ACCOUNT_ID: identity_id,
+    }
+
+
+async def test_new_account_reuses_removed_title_gap(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reauth_entry(hass, unique_id="identity-1", title="Gentex PLACE")
+    removed = _reauth_entry(
+        hass,
+        unique_id="identity-2",
+        title="Gentex PLACE 2",
+    )
+    stable = _reauth_entry(
+        hass,
+        unique_id="identity-3",
+        title="Gentex PLACE 3",
+    )
+    await hass.config_entries.async_remove(removed.entry_id)
+    assert removed not in hass.config_entries.async_entries(DOMAIN)
+    install_place_fakes(
+        monkeypatch,
+        credential_results=[make_credentials("identity-4")],
+    )
+    form = await _start_user_flow(hass)
+
+    result = await _submit_user(hass, form["flow_id"])
+
+    assert result.get("title") == "Gentex PLACE 2"
+    assert stable.title == "Gentex PLACE 3"
 
 
 async def test_user_flow_stores_only_allowlisted_account_data(

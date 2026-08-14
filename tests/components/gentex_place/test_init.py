@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _INITIAL_SHADOW_TIME = 100.0
+_EXPECTED_RELOADED_STOP_CALLS = 2
 
 
 def isolate_platform_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -47,11 +48,11 @@ def isolate_platform_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(integration_module, "PLATFORMS", [])
 
 
-def make_entry() -> RecordingConfigEntry:
+def make_entry(*, title: str = "alice") -> RecordingConfigEntry:
     """Build a loaded-account config entry for lifecycle tests."""
     return RecordingConfigEntry(
         domain=DOMAIN,
-        title="alice",
+        title=title,
         unique_id="identity-1",
         data={
             "username": "alice",
@@ -59,6 +60,25 @@ def make_entry() -> RecordingConfigEntry:
             CONF_ACCOUNT_ID: "identity-1",
         },
     )
+
+
+async def test_safe_ordinal_title_stays_stable_across_reload(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = install_runtime_fakes(monkeypatch)
+    isolate_platform_forwarding(monkeypatch)
+    entry = make_entry(title="Gentex PLACE 3")
+    entry.add_to_hass(hass)
+
+    assert await integration_module.async_setup_entry(hass, entry) is True
+    assert entry.title == "Gentex PLACE 3"
+    await entry.runtime_data.coordinator.async_shutdown()
+
+    assert await integration_module.async_setup_entry(hass, entry) is True
+    assert entry.title == "Gentex PLACE 3"
+    await entry.runtime_data.coordinator.async_shutdown()
+    assert harness.client.stop_calls == _EXPECTED_RELOADED_STOP_CALLS
 
 
 async def test_setup_authenticates_from_cache_and_registers_callbacks_before_start(
