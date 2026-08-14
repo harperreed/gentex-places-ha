@@ -282,7 +282,7 @@ ACCOUNT_CONNECTIVITY_DESCRIPTION = BinarySensorEntityDescription(
 )
 
 
-class GentexPlaceAccountConnectivityBinarySensor(
+class GentexPlaceAccountConnectivityBinarySensor(  # pyright: ignore[reportIncompatibleVariableOverride]
     GentexPlaceAccountEntity, BinarySensorEntity
 ):
     """Represent PLACE account connectivity while the entry remains loaded."""
@@ -300,14 +300,6 @@ class GentexPlaceAccountConnectivityBinarySensor(
     ) -> bool:
         """Return the SDK account connection state."""
         return self.coordinator.client.connected
-
-    @property
-    @override
-    def available(  # pyright: ignore[reportIncompatibleVariableOverride]
-        self,
-    ) -> bool:
-        """Keep the connectivity entity available while disconnected."""
-        return super().available
 
 
 async def async_setup_entry(

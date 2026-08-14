@@ -33,6 +33,7 @@ from .const import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import datetime
 
     from homeassistant.core import HomeAssistant
 
@@ -200,10 +201,15 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
             return
         if cancel := self._motion_timers.pop(device_key, None):
             cancel()
+
+        @callback
+        def clear_motion(_now: datetime) -> None:
+            self._clear_motion(device_key)
+
         self._motion_timers[device_key] = async_call_later(
             self.hass,
             MOTION_WINDOW_SECONDS,
-            lambda _now: self._clear_motion(device_key),
+            clear_motion,
         )
 
     def _device_key_for_event(self, event: DeviceEvent) -> str | None:

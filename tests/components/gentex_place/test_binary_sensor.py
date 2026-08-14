@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -14,6 +16,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
 from place import DeviceEvent, NightLight, PlaceDevice
 from place.models import PlaceDeviceShadow
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.gentex_place.binary_sensor import (
     ACCOUNT_CONNECTIVITY_DESCRIPTION,
@@ -23,7 +26,7 @@ from custom_components.gentex_place.binary_sensor import (
     GentexPlaceStatusBinarySensorEntityDescription,
     health_problem,
 )
-from custom_components.gentex_place.const import DOMAIN
+from custom_components.gentex_place.const import DOMAIN, MOTION_WINDOW_SECONDS
 from custom_components.gentex_place.coordinator import GentexPlaceCoordinator
 from tests.components.gentex_place.fakes import (
     FakePlaceClient,
@@ -40,6 +43,8 @@ type StatusCase = tuple[str, BinarySensorDeviceClass | None, str]
 type DirectStatusCase = tuple[str, str, BinarySensorDeviceClass | None]
 type AttributeCase = tuple[str, str]
 
+_ACTIVE_FAULT_CODE = 2
+
 STATUS_CASES: tuple[StatusCase, ...] = (
     ("connection", BinarySensorDeviceClass.CONNECTIVITY, "Connection"),
     ("motion", BinarySensorDeviceClass.MOTION, "Motion"),
@@ -55,6 +60,17 @@ STATUS_CASES: tuple[StatusCase, ...] = (
     ("end_of_life", BinarySensorDeviceClass.PROBLEM, "End of life"),
     ("night_light", BinarySensorDeviceClass.LIGHT, "Night light"),
 )
+
+
+@dataclass
+class MonotonicClock:
+    """Expose deterministic elapsed time to coordinator liveness checks."""
+
+    value: float
+
+    def __call__(self) -> float:
+        """Return the current test timestamp."""
+        return self.value
 
 
 def make_device(
@@ -372,8 +388,9 @@ async def test_loaded_status_entities_follow_pushes_and_account_disconnect(
     device.shadow.battery_low_pre_warning = False
     sibling.shadow.battery_low_pre_warning = False
     harness = install_runtime_fakes(monkeypatch, devices=[device, sibling])
+    clock = MonotonicClock(100.0)
     monkeypatch.setattr(
-        "custom_components.gentex_place.coordinator.time.monotonic", lambda: 100.0
+        "custom_components.gentex_place.coordinator.time.monotonic", clock
     )
     entry = make_entry()
     entry.add_to_hass(hass)
@@ -435,6 +452,21 @@ async def test_loaded_status_entities_follow_pushes_and_account_disconnect(
             == STATE_OFF
         )
 
+        clock.value = 100.0 + MOTION_WINDOW_SECONDS + 0.001
+        async_fire_time_changed(
+            hass,
+            datetime.now(UTC) + timedelta(seconds=MOTION_WINDOW_SECONDS + 1),
+        )
+        await hass.async_block_till_done()
+        assert (
+            loaded_state(hass, registry, unique_id("thing-1", "motion"))[1].state
+            == STATE_OFF
+        )
+        assert (
+            loaded_state(hass, registry, unique_id("thing-2", "motion"))[1].state
+            == STATE_OFF
+        )
+
         harness.client.emit_connection_change(connected=False)
         await hass.async_block_till_done()
         assert (
@@ -448,6 +480,61 @@ async def test_loaded_status_entities_follow_pushes_and_account_disconnect(
                 ].state
                 == STATE_OFF
             )
+        assert (
+            loaded_state(
+                hass, registry, unique_id("thing-2", "battery_low_pre_warning")
+            )[1].state
+            == STATE_UNAVAILABLE
+        )
+    finally:
+        assert await hass.config_entries.async_unload(entry.entry_id) is True
+    assert harness.client.stop_completed is True
+
+
+async def test_loaded_health_entity_updates_state_and_copies_raw_attributes(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    device = make_place_device(last_shadow_at=100.0)
+    initial_faults: dict[str, object] = {"detector": 0, "relay": 0.0}
+    device.shadow.faults = initial_faults
+    harness = install_runtime_fakes(monkeypatch, devices=[device])
+    monkeypatch.setattr(
+        "custom_components.gentex_place.coordinator.time.monotonic", lambda: 100.0
+    )
+    entry = make_entry()
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id) is True
+    registry = er.async_get(hass)
+    try:
+        _entry, faults_state = loaded_state(
+            hass, registry, unique_id("thing-1", "faults")
+        )
+        assert faults_state.state == STATE_OFF
+        assert {
+            key: faults_state.attributes[key] for key in initial_faults
+        } == initial_faults
+
+        initial_faults["detector"] = 99
+        assert faults_state.attributes["detector"] == 0
+
+        updated_faults: dict[str, object] = {
+            "detector": _ACTIVE_FAULT_CODE,
+            "relay": 0.0,
+        }
+        device.shadow.faults = updated_faults
+        harness.client.emit_update(device)
+        await hass.async_block_till_done()
+        _entry, faults_state = loaded_state(
+            hass, registry, unique_id("thing-1", "faults")
+        )
+        assert faults_state.state == STATE_ON
+        assert {
+            key: faults_state.attributes[key] for key in updated_faults
+        } == updated_faults
+
+        updated_faults["detector"] = 99
+        assert faults_state.attributes["detector"] == _ACTIVE_FAULT_CODE
     finally:
         assert await hass.config_entries.async_unload(entry.entry_id) is True
     assert harness.client.stop_completed is True
