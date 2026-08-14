@@ -21,8 +21,18 @@ if TYPE_CHECKING:
 
 
 def stable_device_id(device: PlaceDevice) -> str:
-    """Return the PLACE device ID, or its thing name when no ID is present."""
-    return device.device_id or device.thing_name
+    """Return the required PLACE thing name used for stable identity."""
+    return device.thing_name
+
+
+def _escape_identifier_component(value: str) -> str:
+    """Escape reserved separators in one opaque registry-ID component."""
+    return value.replace("%", "%25").replace("_", "%5F").replace(":", "%3A")
+
+
+def _entity_unique_id(*components: str) -> str:
+    """Join escaped opaque components into an injective entity unique ID."""
+    return "_".join(_escape_identifier_component(value) for value in components)
 
 
 def _account_id(coordinator: GentexPlaceCoordinator) -> str:
@@ -49,12 +59,20 @@ class GentexPlaceDeviceEntity(CoordinatorEntity[GentexPlaceCoordinator]):
         self._device_key = device_key
         self._account_id = _account_id(coordinator)
         self._stable_device_id = stable_device_id(self.device)
-        self._attr_unique_id = (
-            f"{self._account_id}_{self._stable_device_id}_{entity_description.key}"
+        self._attr_unique_id = _entity_unique_id(
+            self._account_id, self._stable_device_id, entity_description.key
         )
         device = self.device
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{self._account_id}:{self._stable_device_id}")},
+            identifiers={
+                (
+                    DOMAIN,
+                    ":".join(
+                        _escape_identifier_component(value)
+                        for value in (self._account_id, self._stable_device_id)
+                    ),
+                )
+            },
             manufacturer=MANUFACTURER,
             name=device.name or f"PLACE device {self._stable_device_id[-4:]}",
             model=device.model,
@@ -91,7 +109,7 @@ class GentexPlaceAccountEntity(CoordinatorEntity[GentexPlaceCoordinator]):
         super().__init__(coordinator)
         self.entity_description = entity_description
         account_id = _account_id(coordinator)
-        self._attr_unique_id = f"{account_id}_{entity_description.key}"
+        self._attr_unique_id = _entity_unique_id(account_id, entity_description.key)
 
     @property
     @override
