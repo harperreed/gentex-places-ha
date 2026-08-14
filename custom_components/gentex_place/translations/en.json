@@ -38,20 +38,50 @@
   },
   "entity": {
     "binary_sensor": {
+      "account_connection": {
+        "name": "Account connection"
+      },
       "air_quality_alarm": {
         "name": "Air quality alarm"
+      },
+      "battery_low_pre_warning": {
+        "name": "Battery low pre-warning"
+      },
+      "chatty_mode": {
+        "name": "Chatty mode"
       },
       "co_alarm": {
         "name": "Carbon monoxide alarm"
       },
+      "connection": {
+        "name": "Connection"
+      },
+      "end_of_life": {
+        "name": "End of life"
+      },
       "explosive_gas_alarm": {
         "name": "Explosive gas alarm"
+      },
+      "faults": {
+        "name": "Fault"
       },
       "heat_alarm": {
         "name": "Heat alarm"
       },
+      "humidity_alert": {
+        "name": "Humidity alert"
+      },
+      "motion": {
+        "name": "Motion"
+      },
+      "night_light": {
+        "name": "Night light"
+      },
       "smoke_alarm": {
         "name": "Smoke alarm"
+      },
+      "temperature_alert": {
+        "name": "Temperature alert"
       },
       "voc_alarm": {
         "name": "VOC alarm"

@@ -310,10 +310,17 @@ async def test_loaded_entry_creates_all_alarm_states_and_registry_entries(
     assert await hass.config_entries.async_setup(entry.entry_id) is True
     registry = er.async_get(hass)
     try:
+        expected_alarm_unique_ids = {
+            alarm_unique_id(thing_name, key)
+            for thing_name in ("thing-1", "thing-2")
+            for _attribute, alarm_key, _class, _name in ALARM_CASES
+            for key in (alarm_key, f"{alarm_key}_status")
+        }
         loaded_entries = [
             item
             for item in registry.entities.values()
             if item.config_entry_id == entry.entry_id
+            and item.unique_id in expected_alarm_unique_ids
         ]
         assert len(loaded_entries) == _EXPECTED_ALARM_ENTITIES
 
