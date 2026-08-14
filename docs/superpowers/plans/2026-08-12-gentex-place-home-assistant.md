@@ -779,16 +779,20 @@ git commit -m "feat: expose PLACE device status sensors"
 
 ### Task 7: Complete numeric telemetry sensors
 
+**State:** Complete in commit `fe2746f`. Spec and quality reviews approved.
+Fresh verification passes all 347 integration tests with zero type, lint, or
+Home Assistant sensor-validation findings.
+
 **Files:**
 - Modify: `custom_components/gentex_place/sensor.py`
-- Modify: translation JSON files
+- Modify: `custom_components/gentex_place/translations/en.json`
 - Create: `tests/components/gentex_place/test_sensor.py`
 
 **Interfaces:**
 - Consumes: supported numeric fields from `PlaceDevice.shadow`.
 - Produces: all numeric sensors in spec section 8.3.
 
-- [ ] **Step 1: Write one parameterized field-contract test**
+- [x] **Step 1: Write one parameterized field-contract test**
 
 Use a table with exact attribute, device class, unit, and state class:
 
@@ -814,17 +818,17 @@ TELEMETRY_CASES = (
 
 Add four night-light channel cases. Assert every known value, real zero, `None` availability, enabled-by-default registry state, and that battery status has no battery device class or percent unit.
 
-- [ ] **Step 2: Run and confirm missing telemetry**
+- [x] **Step 2: Run and confirm missing telemetry**
 
 Run: `uv run pytest tests/components/gentex_place/test_sensor.py -q`
 
 Expected: FAIL because telemetry descriptions are absent.
 
-- [ ] **Step 3: Implement data-driven telemetry entities**
+- [x] **Step 3: Implement data-driven telemetry entities**
 
 Define a frozen sensor description with `value_fn`. Use `SensorStateClass.MEASUREMENT` only for fields with verified physical units; leave raw status/scatter/sensitivity/alert/channel values without a state class. Mark board temperature, optical scatter, battery raw status, motion sensitivity, raw alert codes, and RGBA channels as `EntityCategory.DIAGNOSTIC` while keeping `entity_registry_enabled_default=True`, as Doctor Biz requested. For nested night-light values, return `None` when the `NightLight` block is absent. Do not coerce or round SDK values.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 Run:
 

@@ -40,3 +40,6 @@
 - Mark `async_call_later` actions that touch Home Assistant state with `@callback`.
   An unmarked callable becomes an executor job, where coordinator listeners cannot
   safely write entity state.
+- Give `SensorStateClass.MEASUREMENT` only to fields with verified physical units.
+  Raw battery, alert, optical, sensitivity, and light-channel values need no invented
+  unit or statistics meaning.
