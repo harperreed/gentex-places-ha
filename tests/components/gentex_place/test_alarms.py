@@ -165,6 +165,28 @@ def loaded_entity(
     return registry_entry, state
 
 
+def loaded_alarm_states(
+    hass: HomeAssistant,
+    registry: er.EntityRegistry,
+    thing_name: str,
+    key: str,
+) -> tuple[str, str]:
+    """Return the loaded binary and enum states for one device alarm."""
+    _binary_entry, binary_state = loaded_entity(
+        hass,
+        registry,
+        "binary_sensor",
+        alarm_unique_id(thing_name, key),
+    )
+    _sensor_entry, sensor_state = loaded_entity(
+        hass,
+        registry,
+        "sensor",
+        alarm_unique_id(thing_name, f"{key}_status"),
+    )
+    return binary_state.state, sensor_state.state
+
+
 def test_one_metadata_table_drives_both_alarm_platforms() -> None:
     """Keep alarm order, field mapping, and generated keys in one source."""
     assert len(ALARM_METADATA) == len(ALARM_CASES)
@@ -339,6 +361,65 @@ async def test_loaded_entry_creates_all_alarm_states_and_registry_entries(
             )
             assert sibling_binary_state.state == STATE_UNAVAILABLE
             assert sibling_sensor_state.state == STATE_UNAVAILABLE
+    finally:
+        assert await hass.config_entries.async_unload(entry.entry_id) is True
+    assert harness.client.stop_completed is True
+
+
+async def test_loaded_alarm_states_follow_sdk_push_without_changing_sibling(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    device = make_place_device(last_shadow_at=100.0)
+    sibling = make_place_device(
+        thing_name="thing-2", device_id="device-2", last_shadow_at=100.0
+    )
+    device.shadow.smoke_alarm_status = AlarmStatus.ALARM
+    sibling.shadow.smoke_alarm_status = AlarmStatus.TEST
+    harness = install_runtime_fakes(monkeypatch, devices=[device, sibling])
+    monkeypatch.setattr(
+        "custom_components.gentex_place.coordinator.time.monotonic", lambda: 100.0
+    )
+    entry = make_entry()
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id) is True
+    registry = er.async_get(hass)
+    sibling_states = (STATE_ON, "test")
+    try:
+        assert loaded_alarm_states(hass, registry, "thing-1", "smoke_alarm") == (
+            STATE_ON,
+            "alarm",
+        )
+        assert (
+            loaded_alarm_states(hass, registry, "thing-2", "smoke_alarm")
+            == sibling_states
+        )
+
+        device.shadow.smoke_alarm_status = AlarmStatus.IDLE
+        harness.client.emit_update(device)
+        await hass.async_block_till_done()
+
+        assert loaded_alarm_states(hass, registry, "thing-1", "smoke_alarm") == (
+            STATE_OFF,
+            "idle",
+        )
+        assert (
+            loaded_alarm_states(hass, registry, "thing-2", "smoke_alarm")
+            == sibling_states
+        )
+
+        device.shadow.smoke_alarm_status = AlarmStatus.NOT_PRESENT
+        harness.client.emit_update(device)
+        await hass.async_block_till_done()
+
+        assert loaded_alarm_states(hass, registry, "thing-1", "smoke_alarm") == (
+            STATE_UNAVAILABLE,
+            STATE_UNAVAILABLE,
+        )
+        assert (
+            loaded_alarm_states(hass, registry, "thing-2", "smoke_alarm")
+            == sibling_states
+        )
     finally:
         assert await hass.config_entries.async_unload(entry.entry_id) is True
     assert harness.client.stop_completed is True
