@@ -1,0 +1,12 @@
+{
+  "domain": "gentex_place",
+  "name": "Gentex PLACE",
+  "codeowners": ["@harperreed"],
+  "config_flow": true,
+  "documentation": "https://github.com/harperreed/gentex-places-ha",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/harperreed/gentex-places-ha/issues",
+  "requirements": ["place-integration-api==0.3.0"],
+  "version": "0.1.0"
+}
