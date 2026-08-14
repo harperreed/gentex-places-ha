@@ -35,5 +35,95 @@
         "title": "Connect to Gentex PLACE"
       }
     }
+  },
+  "entity": {
+    "binary_sensor": {
+      "air_quality_alarm": {
+        "name": "Air quality alarm"
+      },
+      "co_alarm": {
+        "name": "Carbon monoxide alarm"
+      },
+      "explosive_gas_alarm": {
+        "name": "Explosive gas alarm"
+      },
+      "heat_alarm": {
+        "name": "Heat alarm"
+      },
+      "smoke_alarm": {
+        "name": "Smoke alarm"
+      },
+      "voc_alarm": {
+        "name": "VOC alarm"
+      }
+    },
+    "sensor": {
+      "air_quality_alarm_status": {
+        "name": "Air quality alarm status",
+        "state": {
+          "alarm": "Alarm",
+          "critical_alarm": "Critical alarm",
+          "hushed": "Hushed",
+          "idle": "Idle",
+          "pre_alarm": "Pre-alarm",
+          "test": "Test"
+        }
+      },
+      "co_alarm_status": {
+        "name": "Carbon monoxide alarm status",
+        "state": {
+          "alarm": "Alarm",
+          "critical_alarm": "Critical alarm",
+          "hushed": "Hushed",
+          "idle": "Idle",
+          "pre_alarm": "Pre-alarm",
+          "test": "Test"
+        }
+      },
+      "explosive_gas_alarm_status": {
+        "name": "Explosive gas alarm status",
+        "state": {
+          "alarm": "Alarm",
+          "critical_alarm": "Critical alarm",
+          "hushed": "Hushed",
+          "idle": "Idle",
+          "pre_alarm": "Pre-alarm",
+          "test": "Test"
+        }
+      },
+      "heat_alarm_status": {
+        "name": "Heat alarm status",
+        "state": {
+          "alarm": "Alarm",
+          "critical_alarm": "Critical alarm",
+          "hushed": "Hushed",
+          "idle": "Idle",
+          "pre_alarm": "Pre-alarm",
+          "test": "Test"
+        }
+      },
+      "smoke_alarm_status": {
+        "name": "Smoke alarm status",
+        "state": {
+          "alarm": "Alarm",
+          "critical_alarm": "Critical alarm",
+          "hushed": "Hushed",
+          "idle": "Idle",
+          "pre_alarm": "Pre-alarm",
+          "test": "Test"
+        }
+      },
+      "voc_alarm_status": {
+        "name": "VOC alarm status",
+        "state": {
+          "alarm": "Alarm",
+          "critical_alarm": "Critical alarm",
+          "hushed": "Hushed",
+          "idle": "Idle",
+          "pre_alarm": "Pre-alarm",
+          "test": "Test"
+        }
+      }
+    }
   }
 }
