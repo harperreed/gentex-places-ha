@@ -659,6 +659,6 @@ git commit -m "ci: validate SDK releases before publishing"
 
 - [x] **Step 6: Stop at the external release gate**
 
-**Candidate:** SDK commit `6d7536a`; independent whole-branch and targeted config reviews approved with no findings. Fresh `UV_PYTHON=3.11 scripts/check` verification passed with Python 3.11.14, Ruff and basedpyright at zero findings, 228 tests, and Twine-approved wheel and sdist. No push, tag, release, PyPI request, or live-account call has occurred.
+**Candidate:** SDK commit `ac9bf45`; independent whole-branch, targeted config, and discovery-timeout reviews approved with no findings. Fresh `UV_PYTHON=3.11 scripts/check` verification passed with Python 3.11.14, Ruff and basedpyright at zero findings, 234 tests, and Twine-approved wheel and sdist. No push, tag, release, PyPI request, or live-account call has occurred.
 
-Record the candidate commit and the output of `scripts/check`. Do not run `git push`, create a GitHub release, or publish to PyPI in this plan. Doctor Biz must authorize those external writes after reviewing the SDK branch. The Home Assistant plan does not begin until PyPI serves this exact SDK contract; this keeps its lock file and clean-install tests honest.
+Record the candidate commit and the output of `scripts/check`. Do not run `git push`, create a GitHub release, or publish to PyPI in this plan. Doctor Biz must authorize those external writes after reviewing the SDK branch. Local Home Assistant development may use this exact sibling checkout; its PyPI conversion and clean-install release checks remain blocked until PyPI serves this contract.

@@ -17,3 +17,12 @@
   read process or `.env` values; ambient Home Assistant settings must not redirect it.
 - Config-entry token saves require the supplied username to match the entry username.
   Never relabel a refresh token from one account as another account's token.
+- Config flows must clear SDK objects and token caches on cancellation and on Home
+  Assistant's synchronous `async_remove` hook; MFA state loss returns to the form for
+  the flow's source.
+- Normalize built-in and aiohttp discovery timeouts to `PlaceTimeoutError` inside the
+  SDK. In Home Assistant, translate timeouts only at explicit SDK await boundaries so
+  programmer `TimeoutError` exceptions still surface.
+- Home Assistant 2026.8.1 exact-pins vulnerable `cryptography==48.0.1`. Do not force a
+  newer cryptography over that pin; move to a fixed supported HA release or record an
+  explicit risk exception before release, then rerun `pip-audit`.

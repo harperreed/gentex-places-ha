@@ -19,7 +19,7 @@
   future releases before they are tested.
 - The manifest always pins exactly `place-integration-api==0.3.0`. During Tasks 1–8,
   uv resolves that dependency from the non-editable sibling SDK checkout at verified
-  commit `6d7536a`. This development lock is not a release lock.
+  commit `ac9bf45`. This development lock is not a release lock.
 - SDK plan `2026-08-12-place-sdk-auth-contract.md` has landed on the sibling checkout's
   local `master`. Task 9 may not begin until PyPI serves the same 0.3.0 contract; at
   that point remove the local uv source and regenerate the lock from PyPI. Do not fake
@@ -62,7 +62,7 @@ git status --short --branch
 test "$(git branch --show-current)" = "wip/gentex-place-integration"
 uv python install 3.14.2
 test "$(git -C ../place-integration-api rev-parse HEAD)" = \
-  "6d7536a28da0b3a272fdc839d4bce04e32ca8b95"
+  "ac9bf456db9c163db8027e7826e4434e44719d84"
 uv run --isolated --python 3.14.2 --with ../place-integration-api python -c \
   'from place import CognitoAuth, PlaceClient, PlaceInvalidAuthError, PlaceTransientAuthError, __version__; assert __version__ == "0.3.0"'
 ```
@@ -74,7 +74,7 @@ verified local SDK 0.3.0 exposes the required public imports.
 
 ### Task 1: Reproducible project and token store
 
-**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality reviews approved. Development uses local SDK `6d7536a`.
+**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality reviews approved. Development uses local SDK `ac9bf45`.
 
 **Files:**
 - Create: `pyproject.toml`
@@ -344,6 +344,8 @@ git commit -m "feat: add Gentex PLACE integration foundation"
 
 ### Task 2: User, MFA, duplicate-account, and reauth config flow
 
+**State:** Complete in HA commits `68f4843`, `fc4a67c`, and `c2a3376`, with SDK timeout normalization in `ac9bf45`. Spec and quality reviews approved; 106 HA tests and 234 SDK tests pass. The Home Assistant 2026.8.1 test dependency pin on vulnerable `cryptography==48.0.1` remains a release gate, not a Task 2 code failure.
+
 **Files:**
 - Create: `custom_components/gentex_place/config_flow.py`
 - Create: `custom_components/gentex_place/translations/en.json`
@@ -354,7 +356,7 @@ git commit -m "feat: add Gentex PLACE integration foundation"
 - Consumes: `CognitoAuth.authenticate(username, password)`, `submit_mfa(code)`, `async_get_iot_credentials()`, `PlaceClient.async_discover()`, typed SDK errors, and token-cache `load()`.
 - Produces: config entries containing `username`, `refresh_token`, and `account_id`; user/MFA/reauth flow steps.
 
-- [ ] **Step 1: Build hand-written auth/client fakes and failing happy-path test**
+- [x] **Step 1: Build hand-written auth/client fakes and failing happy-path test**
 
 In `fakes.py`, define `FakeAuth` with scripted `authenticate`, `submit_mfa`, and `async_get_iot_credentials`, plus a cache save of `{"username": ..., "refresh_token": "refresh-1"}` after success. Define `FakeClient.async_discover()` returning a supplied `DiscoverDevice` list. Counters must record calls and values without logging passwords or codes.
 
@@ -380,7 +382,7 @@ async def test_user_flow_stores_refresh_token_not_password(
     assert "PASSWORD-CANARY" not in repr(result)
 ```
 
-- [ ] **Step 2: Add failing MFA, duplicate, error, and reauth scenarios**
+- [x] **Step 2: Add failing MFA, duplicate, error, and reauth scenarios**
 
 Add separate tests asserting:
 
@@ -398,15 +400,15 @@ Add separate tests asserting:
 
 Use `FlowResultType` and inspect exact result data; never patch `hass.config_entries.flow` internals.
 
-- [ ] **Step 3: Run tests and confirm the flow is absent**
+- [x] **Step 3: Run tests and confirm the flow is absent**
 
 Run: `uv run pytest tests/components/gentex_place/test_config_flow.py -q`
 
 Expected: FAIL because `config_flow.py` is absent.
 
-- [ ] **Step 4: Implement the flow**
+- [x] **Step 4: Implement the flow**
 
-Create `GentexPlaceConfigFlow(ConfigFlow, domain=DOMAIN)` with `VERSION = 1`. Keep `_auth`, `_client`, `_username`, `_password`, `_token_cache`, and `_reauth_entry` only on the live flow object. Use:
+Create `GentexPlaceConfigFlow(ConfigFlow, domain=DOMAIN)` with `VERSION = 1`. Keep `_auth`, `_client`, `_username`, `_token_cache`, and `_reauth_entry` only on the live flow object. Never retain the password or MFA code on the flow object. Use:
 
 ```python
 USER_SCHEMA = vol.Schema(
@@ -432,7 +434,7 @@ return self.async_create_entry(
 
 For reauth, use `_get_reauth_entry()`, `await self.async_set_unique_id(identity_id)`, `_abort_if_unique_id_mismatch()`, and `async_update_reload_and_abort(..., data_updates=...)`. Use standard result keys `invalid_auth`, `invalid_mfa`, `cannot_connect`, `no_devices`, `already_configured`, `wrong_account`, and `reauth_successful` in `translations/en.json`. Custom integrations do not ship `strings.json`; write full English strings with no core-build placeholders.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run:
 
@@ -890,7 +892,7 @@ Confirm PyPI serves SDK 0.3.0 with the required public imports. Remove
 `[tool.uv.sources]` from `pyproject.toml`, run `uv lock --refresh-package
 place-integration-api`, and inspect `uv.lock` to prove the SDK source is the registry,
 not a path. Run the full suite before any CI or release claim. Stop here if PyPI 0.3.0
-is unavailable or its wheel contract differs from local commit `6d7536a`.
+is unavailable or its wheel contract differs from local commit `ac9bf45`.
 
 - [ ] **Step 1: Add manifest/repository contract tests**
 
