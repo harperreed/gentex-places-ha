@@ -8,16 +8,23 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import TYPE_CHECKING, Never, cast
+from typing import TYPE_CHECKING, Never, cast, override
 
-from place import Credentials, DiscoverDevice
+from homeassistant.core import callback
+from place import Credentials, DeviceEvent, DiscoverDevice, PlaceDevice, PlaceError
+from place.models import PlaceDeviceShadow
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components import gentex_place as integration_module
 from custom_components.gentex_place import auth as auth_helpers
 
 _BLOCKER_RETURNED = "cancellation blocker returned"
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import pytest
+    from homeassistant.core import HomeAssistant
 
     from custom_components.gentex_place.auth import MemoryTokenCache
 
@@ -156,6 +163,247 @@ class FakeClient:
 
 
 @dataclass
+class FakeCachedAuth:
+    """Script cache-only SDK authentication for config-entry setup."""
+
+    order: list[str]
+    result: BaseException | None = None
+    usernames: list[str] = field(default_factory=list)
+
+    async def authenticate_from_cache(self, username: str) -> None:
+        """Record cache authentication and return or raise its scripted result."""
+        self.order.append("authenticate_from_cache")
+        self.usernames.append(username)
+        if self.result is not None:
+            raise self.result
+
+
+@dataclass
+class FakePlaceClient:
+    """Model the public runtime client surface with real PLACE device objects."""
+
+    device_registry: dict[str, PlaceDevice]
+    order: list[str] = field(default_factory=list)
+    start_result: BaseException | None = None
+    ready_on_start: bool = True
+    ready_after_start: bool = False
+    error_after_start: PlaceError | None = None
+    connected: bool = False
+    start_calls: int = 0
+    stop_calls: int = 0
+    stop_completed: bool = False
+    refresh_calls: int = 0
+    refresh_result: BaseException | CancellationBlocker | None = None
+    update_callbacks: list[Callable[[PlaceDevice], None]] = field(
+        default_factory=list, repr=False
+    )
+    event_callbacks: list[Callable[[DeviceEvent], None]] = field(
+        default_factory=list, repr=False
+    )
+    connection_callbacks: list[Callable[[bool], None]] = field(
+        default_factory=list, repr=False
+    )
+    error_callbacks: list[Callable[[PlaceError], None]] = field(
+        default_factory=list, repr=False
+    )
+
+    @property
+    def devices(self) -> dict[str, PlaceDevice]:
+        """Return the mutable devices through the SDK's defensive map copy."""
+        return dict(self.device_registry)
+
+    async def start(self) -> None:
+        """Start and optionally expose immediate public readiness state."""
+        self.order.append("start")
+        self.start_calls += 1
+        if self.start_result is not None:
+            raise self.start_result
+        if self.ready_on_start:
+            self.connected = True
+            if self.device_registry:
+                next(iter(self.device_registry.values())).last_shadow_at = 100.0
+        elif self.ready_after_start:
+            self.connected = True
+            asyncio.get_running_loop().call_soon(self._stamp_first_shadow)
+        if self.error_after_start is not None:
+            asyncio.get_running_loop().call_soon(
+                self.emit_error, self.error_after_start
+            )
+
+    async def stop(self) -> None:
+        """Record an awaited stop call."""
+        self.order.append("stop")
+        self.stop_calls += 1
+        self.stop_completed = True
+
+    def on_update(self, callback_: Callable[[PlaceDevice], None]) -> Callable[[], None]:
+        """Register a device-update callback."""
+        self.order.append("on_update")
+        return self._register(self.update_callbacks, callback_)
+
+    def on_event(self, callback_: Callable[[DeviceEvent], None]) -> Callable[[], None]:
+        """Register an event callback."""
+        self.order.append("on_event")
+        return self._register(self.event_callbacks, callback_)
+
+    def on_connection_change(
+        self, callback_: Callable[[bool], None]
+    ) -> Callable[[], None]:
+        """Register a connection-state callback."""
+        self.order.append("on_connection_change")
+        return self._register(self.connection_callbacks, callback_)
+
+    def on_error(self, callback_: Callable[[PlaceError], None]) -> Callable[[], None]:
+        """Register a typed SDK error callback."""
+        self.order.append("on_error")
+        return self._register(self.error_callbacks, callback_)
+
+    async def async_refresh_shadow(self, thing_name: str | None = None) -> None:
+        """Record one all-device refresh and return or raise its script."""
+        assert thing_name is None
+        self.refresh_calls += 1
+        if isinstance(self.refresh_result, CancellationBlocker):
+            await self.refresh_result.wait()
+        if self.refresh_result is not None:
+            raise self.refresh_result
+
+    def emit_update(self, device: PlaceDevice) -> None:
+        """Emit one SDK device update."""
+        for callback_ in list(self.update_callbacks):
+            callback_(device)
+
+    def emit_event(self, event: DeviceEvent, *, now: float) -> None:
+        """Apply and emit an event in the same order as the real client."""
+        device = self._device_for_event(event)
+        if device is not None:
+            device.apply_event(event, now=now)
+            self.emit_update(device)
+        for callback_ in list(self.event_callbacks):
+            callback_(event)
+
+    def emit_connection_change(self, *, connected: bool) -> None:
+        """Expose and emit a connection-state transition."""
+        self.connected = connected
+        for callback_ in list(self.connection_callbacks):
+            callback_(connected)
+
+    def emit_error(self, error: PlaceError) -> None:
+        """Emit one typed SDK runtime error."""
+        for callback_ in list(self.error_callbacks):
+            callback_(error)
+
+    def _device_for_event(self, event: DeviceEvent) -> PlaceDevice | None:
+        if event.thing_name is not None:
+            return self.device_registry.get(event.thing_name)
+        if event.device_id is not None:
+            return next(
+                (
+                    device
+                    for device in self.device_registry.values()
+                    if device.device_id == event.device_id
+                ),
+                None,
+            )
+        return None
+
+    def _stamp_first_shadow(self) -> None:
+        """Stamp public liveness without emitting a state-change callback."""
+        if self.device_registry:
+            next(iter(self.device_registry.values())).last_shadow_at = 100.0
+
+    @staticmethod
+    def _register[CallbackT](
+        registry: list[CallbackT], callback_: CallbackT
+    ) -> Callable[[], None]:
+        registry.append(callback_)
+
+        def unsubscribe() -> None:
+            if callback_ in registry:
+                registry.remove(callback_)
+
+        return unsubscribe
+
+
+class RecordingConfigEntry(MockConfigEntry):
+    """Record reauth requests without starting a Home Assistant flow."""
+
+    reauth_calls: int
+
+    def __init__(
+        self,
+        *,
+        domain: str,
+        title: str,
+        unique_id: str | None,
+        data: dict[str, object],
+    ) -> None:
+        """Create a config entry with an empty reauth history."""
+        super().__init__(
+            domain=domain,
+            title=title,
+            unique_id=unique_id,
+            data=data,
+        )
+        self.reauth_calls = 0
+
+    @callback
+    @override
+    def async_start_reauth(
+        self,
+        hass: HomeAssistant,
+        context: object | None = None,
+        data: dict[str, object] | None = None,
+    ) -> None:
+        """Record one reauth request."""
+        _ = hass, context, data
+        self.reauth_calls += 1
+
+
+@dataclass
+class RuntimeHarness:
+    """Own cache-auth and runtime-client fakes for lifecycle tests."""
+
+    auth: FakeCachedAuth
+    client: FakePlaceClient
+
+
+def install_runtime_fakes(  # noqa: PLR0913 - explicit scripts keep cases readable
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    auth_result: BaseException | None = None,
+    start_result: BaseException | None = None,
+    ready_on_start: bool = True,
+    ready_after_start: bool = False,
+    error_after_start: PlaceError | None = None,
+    devices: list[PlaceDevice] | None = None,
+) -> RuntimeHarness:
+    """Patch the integration's public auth and client construction boundaries."""
+    order: list[str] = []
+    auth = FakeCachedAuth(order=order, result=auth_result)
+    runtime_devices = devices if devices is not None else [make_place_device()]
+    client = FakePlaceClient(
+        device_registry={device.thing_name: device for device in runtime_devices},
+        order=order,
+        start_result=start_result,
+        ready_on_start=ready_on_start,
+        ready_after_start=ready_after_start,
+        error_after_start=error_after_start,
+    )
+
+    def create_auth(_hass: object, _cache: object) -> FakeCachedAuth:
+        return auth
+
+    def create_client(received_auth: object) -> FakePlaceClient:
+        assert received_auth is auth
+        return client
+
+    monkeypatch.setattr(integration_module, "create_auth", create_auth)
+    monkeypatch.setattr(integration_module, "create_client", create_client)
+    monkeypatch.setattr(integration_module, "PLATFORMS", [])
+    return RuntimeHarness(auth=auth, client=client)
+
+
+@dataclass
 class PlaceFlowHarness:
     """Own the fake instances created through the integration factory boundary."""
 
@@ -245,6 +493,26 @@ def make_device() -> DiscoverDevice:
         model_number="PLACE-1",
         device_id="device-1",
         online=True,
+    )
+
+
+def make_place_device(
+    *,
+    thing_name: str = "thing-1",
+    device_id: str = "device-1",
+    last_shadow_at: float | None = None,
+) -> PlaceDevice:
+    """Build one real SDK runtime device for coordinator tests."""
+    return PlaceDevice(
+        thing_name=thing_name,
+        device_id=device_id,
+        name="PLACE",
+        model="PLACE-1",
+        firmware_version="1.0.0",
+        location="Hallway",
+        online=True,
+        shadow=PlaceDeviceShadow(),
+        last_shadow_at=last_shadow_at,
     )
 
 
