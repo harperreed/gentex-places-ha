@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, override
+import asyncio
+from typing import TYPE_CHECKING, Any, TypeVar, override
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 from place import (
     CognitoAuth,
     MfaRequired,
@@ -17,6 +19,7 @@ from place import (
     PlaceClient,
     PlaceDiscoveryError,
     PlaceInvalidAuthError,
+    PlaceTimeoutError,
 )
 
 from . import auth as auth_helpers
@@ -24,7 +27,12 @@ from .auth import MemoryTokenCache
 from .const import CONF_ACCOUNT_ID, CONF_REFRESH_TOKEN, DOMAIN
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Awaitable, Mapping
+
+_T = TypeVar("_T")
+
+_ABORT_ALREADY_CONFIGURED = "already_configured"
+_ABORT_WRONG_ACCOUNT = "wrong_account"
 
 USER_SCHEMA = vol.Schema(
     {vol.Required(CONF_USERNAME): str, vol.Required(CONF_PASSWORD): str}
@@ -37,6 +45,14 @@ class _FlowDataError(Exception):
     """Signal invalid data at a successful SDK boundary."""
 
 
+class _KnownIdentityAbortError(Exception):
+    """Signal a flow outcome decided by the stable account identity."""
+
+    def __init__(self, reason: str) -> None:
+        """Store the safe Home Assistant abort reason."""
+        self.reason = reason
+
+
 class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a Gentex PLACE config flow."""
 
@@ -47,7 +63,6 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._auth: CognitoAuth | None = None
         self._client: PlaceClient | None = None
         self._username: str | None = None
-        self._password: str | None = None
         self._token_cache = MemoryTokenCache()
         self._reauth_entry: config_entries.ConfigEntry | None = None
 
@@ -62,23 +77,19 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         username = user_input[CONF_USERNAME]
         password = user_input[CONF_PASSWORD]
         auth = self._start_login(username)
-        self._password = password
         try:
-            await auth.authenticate(username, password)
+            await self._async_await_sdk(auth.authenticate(username, password))
         except MfaRequired:
             return self._show_mfa_form()
         except PlaceInvalidAuthError:
             self._clear_flow_state()
             return self._show_user_form("invalid_auth")
-        except PlaceAuthError:
+        except PlaceTimeoutError, TimeoutError, PlaceAuthError:
             self._clear_flow_state()
             return self._show_user_form("cannot_connect")
         except Exception:
             self._clear_flow_state()
             raise
-        finally:
-            self._password = None
-
         return await self._async_finish_login(error_step="user")
 
     async def async_step_mfa(
@@ -89,13 +100,19 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self._show_mfa_form()
         if self._auth is None:
             self._clear_flow_state()
+            if self.source == config_entries.SOURCE_REAUTH:
+                entry = self._get_reauth_entry()
+                username = entry.data.get(CONF_USERNAME)
+                if isinstance(username, str) and username:
+                    self._reauth_entry = entry
+                    return self._show_reauth_form(username)
             return self._show_user_form("invalid_auth")
 
         try:
-            await self._auth.submit_mfa(user_input["mfa_code"])
+            await self._async_await_sdk(self._auth.submit_mfa(user_input["mfa_code"]))
         except PlaceInvalidAuthError:
             return self._show_mfa_form("invalid_mfa")
-        except PlaceAuthError:
+        except PlaceTimeoutError, TimeoutError, PlaceAuthError:
             return self._show_mfa_form("cannot_connect")
         except Exception:
             self._clear_flow_state()
@@ -127,23 +144,19 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         auth = self._start_login(username, reauth_entry=entry)
         password = user_input[CONF_PASSWORD]
-        self._password = password
         try:
-            await auth.authenticate(username, password)
+            await self._async_await_sdk(auth.authenticate(username, password))
         except MfaRequired:
             return self._show_mfa_form()
         except PlaceInvalidAuthError:
-            self._clear_login_state()
+            self._clear_flow_state(keep_reauth=True)
             return self._show_reauth_form(username, "invalid_auth")
-        except PlaceAuthError:
-            self._clear_login_state()
+        except PlaceTimeoutError, TimeoutError, PlaceAuthError:
+            self._clear_flow_state(keep_reauth=True)
             return self._show_reauth_form(username, "cannot_connect")
         except Exception:
             self._clear_flow_state()
             raise
-        finally:
-            self._password = None
-
         return await self._async_finish_login(error_step="reauth_confirm")
 
     def _start_login(
@@ -153,7 +166,7 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         reauth_entry: config_entries.ConfigEntry | None = None,
     ) -> CognitoAuth:
         """Create fresh flow-local SDK objects for one login attempt."""
-        self._clear_login_state()
+        self._clear_flow_state()
         self._username = username
         self._reauth_entry = reauth_entry
         self._auth = auth_helpers.create_auth(self.hass, self._token_cache)
@@ -166,6 +179,9 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Validate identity, discovery, and cached durable token data."""
         try:
             username, identity_id, refresh_token = await self._async_validate_account()
+        except _KnownIdentityAbortError as err:
+            self._clear_flow_state()
+            return self.async_abort(reason=err.reason)
         except PlaceInvalidAuthError:
             return self._finish_error(error_step, "invalid_auth")
         except _NoDevicesError:
@@ -202,12 +218,25 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._auth is None or self._client is None or self._username is None:
             raise _FlowDataError
 
-        credentials = await self._auth.async_get_iot_credentials()
+        credentials = await self._async_await_network(
+            self._auth.async_get_iot_credentials()
+        )
         identity_id = credentials.identity_id
         if not isinstance(identity_id, str) or not identity_id:
             raise _FlowDataError
 
-        devices = await self._client.async_discover()
+        if self._reauth_entry is not None:
+            if self._reauth_entry.unique_id != identity_id:
+                raise _KnownIdentityAbortError(_ABORT_WRONG_ACCOUNT)
+        elif (
+            self.hass.config_entries.async_entry_for_domain_unique_id(
+                DOMAIN, identity_id
+            )
+            is not None
+        ):
+            raise _KnownIdentityAbortError(_ABORT_ALREADY_CONFIGURED)
+
+        devices = await self._async_await_network(self._client.async_discover())
         if not devices:
             raise _NoDevicesError
 
@@ -225,24 +254,40 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Clear SDK state and return the appropriate login form."""
         username = self._username
         reauth_entry = self._reauth_entry
-        self._clear_login_state()
-        self._reauth_entry = reauth_entry
+        self._clear_flow_state(keep_reauth=reauth_entry is not None)
         if step_id == "reauth_confirm" and username is not None:
             return self._show_reauth_form(username, error)
         return self._show_user_form(error)
 
-    def _clear_login_state(self) -> None:
-        """Drop secrets and SDK references while retaining reauth context."""
-        self._password = None
+    async def _async_await_sdk(self, operation: Awaitable[_T]) -> _T:
+        """Clear all flow state when an SDK await receives cancellation."""
+        try:
+            return await operation
+        except asyncio.CancelledError:
+            self._clear_flow_state()
+            raise
+
+    async def _async_await_network(self, operation: Awaitable[_T]) -> _T:
+        """Map timeouts only at a known SDK network await boundary."""
+        try:
+            return await self._async_await_sdk(operation)
+        except PlaceTimeoutError, TimeoutError:
+            raise _FlowConnectionError from None
+
+    def _clear_flow_state(self, *, keep_reauth: bool = False) -> None:
+        """Drop all flow-owned SDK, account, and token state."""
         self._token_cache.clear()
         self._auth = None
         self._client = None
         self._username = None
+        if not keep_reauth:
+            self._reauth_entry = None
 
-    def _clear_flow_state(self) -> None:
-        """Drop all flow-owned account and SDK references."""
-        self._clear_login_state()
-        self._reauth_entry = None
+    @callback
+    @override
+    def async_remove(self) -> None:
+        """Release flow-owned secrets and SDK references when HA removes the flow."""
+        self._clear_flow_state()
 
     def _show_user_form(
         self, error: str | None = None
@@ -278,3 +323,7 @@ class GentexPlaceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class _NoDevicesError(_FlowDataError):
     """Signal successful authentication for an account with no PLACE devices."""
+
+
+class _FlowConnectionError(_FlowDataError):
+    """Signal a retryable failure at a known SDK network await boundary."""

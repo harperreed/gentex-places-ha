@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from hashlib import sha256
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Never, cast
 
 from place import Credentials, DiscoverDevice
 
 from custom_components.gentex_place import auth as auth_helpers
+
+_BLOCKER_RETURNED = "cancellation blocker returned"
 
 if TYPE_CHECKING:
     import pytest
@@ -22,6 +25,20 @@ if TYPE_CHECKING:
 def _digest(value: str) -> str:
     """Hash a secret so failed assertions cannot print the input."""
     return sha256(value.encode()).hexdigest()
+
+
+@dataclass
+class CancellationBlocker:
+    """Hold an SDK await open until its task receives cancellation."""
+
+    entered: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+    _never: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+
+    async def wait(self) -> Never:
+        """Signal entry, then propagate task cancellation from the blocked await."""
+        self.entered.set()
+        await self._never.wait()
+        raise RuntimeError(_BLOCKER_RETURNED)
 
 
 @dataclass(frozen=True)
@@ -54,11 +71,13 @@ class FakeAuth:
     """Script public Cognito authentication calls without network access."""
 
     token_cache: MemoryTokenCache = field(repr=False)
-    authenticate_results: list[BaseException | None] = field(
+    authenticate_results: list[BaseException | CancellationBlocker | None] = field(
         default_factory=list, repr=False
     )
-    mfa_results: list[BaseException | None] = field(default_factory=list, repr=False)
-    credential_results: list[Credentials | BaseException] = field(
+    mfa_results: list[BaseException | CancellationBlocker | None] = field(
+        default_factory=list, repr=False
+    )
+    credential_results: list[Credentials | BaseException | CancellationBlocker] = field(
         default_factory=list, repr=False
     )
     save_token: bool = True
@@ -74,6 +93,8 @@ class FakeAuth:
         )
         self._username = username
         result = self.authenticate_results.pop(0) if self.authenticate_results else None
+        if isinstance(result, CancellationBlocker):
+            await result.wait()
         if result is not None:
             raise result
         if self.save_token:
@@ -83,6 +104,8 @@ class FakeAuth:
         """Run the next MFA result and cache a token after success."""
         self.mfa_calls.append(MfaCall.from_value(code))
         result = self.mfa_results.pop(0) if self.mfa_results else None
+        if isinstance(result, CancellationBlocker):
+            await result.wait()
         if result is not None:
             raise result
         if self.save_token:
@@ -96,6 +119,8 @@ class FakeAuth:
             if self.credential_results
             else make_credentials()
         )
+        if isinstance(result, CancellationBlocker):
+            await result.wait()
         if isinstance(result, BaseException):
             raise result
         return result
@@ -112,9 +137,9 @@ class FakeAuth:
 class FakeClient:
     """Script public device-discovery calls without network access."""
 
-    discover_results: list[list[DiscoverDevice] | BaseException] = field(
-        default_factory=list, repr=False
-    )
+    discover_results: list[
+        list[DiscoverDevice] | BaseException | CancellationBlocker
+    ] = field(default_factory=list, repr=False)
     discover_calls: int = 0
 
     async def async_discover(self) -> list[DiscoverDevice]:
@@ -123,6 +148,8 @@ class FakeClient:
         result = (
             self.discover_results.pop(0) if self.discover_results else [make_device()]
         )
+        if isinstance(result, CancellationBlocker):
+            await result.wait()
         if isinstance(result, BaseException):
             raise result
         return result
@@ -132,46 +159,55 @@ class FakeClient:
 class PlaceFlowHarness:
     """Own the fake instances created through the integration factory boundary."""
 
-    authenticate_results: list[BaseException | None] = field(
+    authenticate_results: list[BaseException | CancellationBlocker | None] = field(
         default_factory=list, repr=False
     )
-    mfa_results: list[BaseException | None] = field(default_factory=list, repr=False)
-    credential_results: list[Credentials | BaseException] = field(
+    mfa_results: list[BaseException | CancellationBlocker | None] = field(
         default_factory=list, repr=False
     )
-    discover_results: list[list[DiscoverDevice] | BaseException] = field(
+    credential_results: list[Credentials | BaseException | CancellationBlocker] = field(
         default_factory=list, repr=False
     )
+    discover_results: list[
+        list[DiscoverDevice] | BaseException | CancellationBlocker
+    ] = field(default_factory=list, repr=False)
     save_token: bool = True
     auth: FakeAuth | None = field(default=None, repr=False)
     client: FakeClient | None = field(default=None, repr=False)
     token_cache: MemoryTokenCache | None = field(default=None, repr=False)
+    auth_instances: list[FakeAuth] = field(default_factory=list, repr=False)
+    client_instances: list[FakeClient] = field(default_factory=list, repr=False)
 
     def create_auth(self, _hass: object, token_cache: MemoryTokenCache) -> FakeAuth:
         """Create the fake auth with the flow-owned token cache."""
         self.token_cache = token_cache
         self.auth = FakeAuth(
             token_cache=token_cache,
-            authenticate_results=list(self.authenticate_results),
-            mfa_results=list(self.mfa_results),
-            credential_results=list(self.credential_results),
+            authenticate_results=self.authenticate_results,
+            mfa_results=self.mfa_results,
+            credential_results=self.credential_results,
             save_token=self.save_token,
         )
+        self.auth_instances.append(self.auth)
         return self.auth
 
     def create_client(self, _auth: object) -> FakeClient:
         """Create the fake discovery client."""
-        self.client = FakeClient(discover_results=list(self.discover_results))
+        self.client = FakeClient(discover_results=self.discover_results)
+        self.client_instances.append(self.client)
         return self.client
 
 
 def install_place_fakes(  # noqa: PLR0913 - explicit scripts keep scenarios readable
     monkeypatch: pytest.MonkeyPatch,
     *,
-    authenticate_results: list[BaseException | None] | None = None,
-    mfa_results: list[BaseException | None] | None = None,
-    credential_results: list[Credentials | BaseException] | None = None,
-    discover_results: list[list[DiscoverDevice] | BaseException] | None = None,
+    authenticate_results: list[BaseException | CancellationBlocker | None]
+    | None = None,
+    mfa_results: list[BaseException | CancellationBlocker | None] | None = None,
+    credential_results: list[Credentials | BaseException | CancellationBlocker]
+    | None = None,
+    discover_results: list[list[DiscoverDevice] | BaseException | CancellationBlocker]
+    | None = None,
     save_token: bool = True,
 ) -> PlaceFlowHarness:
     """Patch only the integration's public SDK construction boundary."""
