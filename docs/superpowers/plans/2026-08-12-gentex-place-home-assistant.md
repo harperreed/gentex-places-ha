@@ -423,7 +423,10 @@ After interactive auth/MFA, call `async_get_iot_credentials()` for `identity_id`
 await self.async_set_unique_id(identity_id)
 self._abort_if_unique_id_configured()
 return self.async_create_entry(
-    title=self._username,
+    title=safe_entry_title(
+        entry.title
+        for entry in self.hass.config_entries.async_entries(DOMAIN)
+    ),
     data={
         CONF_USERNAME: self._username,
         CONF_REFRESH_TOKEN: refresh_token,
@@ -848,6 +851,12 @@ git commit -m "feat: expose PLACE telemetry sensors"
 
 ### Task 8: Allow-list diagnostics and secret-log regression tests
 
+**State:** Complete in commits `c8ea64d`, `9fa1e0f`, and `383b9bd`.
+Spec and quality reviews approved. Fresh verification passes all 369 integration
+tests with zero type or lint findings. Canary regressions cover diagnostics,
+Home Assistant logs, tracebacks, frame-local coordinator state, setup, refresh,
+startup callbacks, and shutdown.
+
 **Files:**
 - Create: `custom_components/gentex_place/diagnostics.py`
 - Create: `tests/components/gentex_place/test_diagnostics.py`
@@ -856,9 +865,13 @@ git commit -m "feat: expose PLACE telemetry sensors"
 - Consumes: config entry, coordinator, SDK version.
 - Produces: `async_get_config_entry_diagnostics(hass, entry) -> dict[str, Any]` containing no stored secrets or home identifiers.
 
-- [ ] **Step 1: Write canary leakage tests**
+- [x] **Step 1: Write canary leakage tests**
 
-Seed distinct canaries in username, refresh token, account identity, device ID, thing name, device name, location, MQTT topic, raw payload, access token, and AWS keys. Serialize diagnostics and captured logs with `json.dumps(..., default=str)`. Assert every canary is absent while these safe values remain:
+Seed distinct canaries in username, refresh token, account identity, device ID,
+thing name, device name, location, MQTT topic, raw payload, access token, ID token,
+and AWS keys. Serialize diagnostics and captured logs with
+`json.dumps(..., default=str)`. Assert every canary is absent while these safe
+values remain:
 
 ```python
 assert diagnostics["integration_version"] == "0.1.0"
@@ -871,17 +884,17 @@ assert diagnostics["timing"]["health_interval_seconds"] == 300
 assert diagnostics["timing"]["stale_after_seconds"] == 900
 ```
 
-- [ ] **Step 2: Run and confirm missing diagnostics**
+- [x] **Step 2: Run and confirm missing diagnostics**
 
 Run: `uv run pytest tests/components/gentex_place/test_diagnostics.py -q`
 
 Expected: FAIL because `diagnostics.py` is absent.
 
-- [ ] **Step 3: Implement from an explicit allow list**
+- [x] **Step 3: Implement from an explicit allow list**
 
 Return a newly built dictionary. Read the integration version from `await homeassistant.loader.async_get_integration(hass, DOMAIN)` so `manifest.json` remains its only source; read the SDK version from `place.__version__`. Do not call `entry.as_dict()`, `asdict(device)`, or SDK raw-data serializers. Per-device output may contain model, firmware, a boolean availability value, and liveness age rounded to whole seconds. Include only error class names, never exception text. Use enumeration indexes rather than device identifiers as keys.
 
-- [ ] **Step 4: Audit logs and verify**
+- [x] **Step 4: Audit logs and verify**
 
 Search production logging calls:
 
@@ -897,7 +910,7 @@ uv run pytest tests/components/gentex_place/test_diagnostics.py tests/components
 
 Expected: PASS; all canaries absent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add custom_components/gentex_place/diagnostics.py tests/components/gentex_place/test_diagnostics.py
