@@ -6,6 +6,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
+import traceback
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, cast
@@ -335,12 +338,37 @@ async def test_concurrent_shutdown_waits_for_the_single_client_stop(
 
 async def test_shutdown_retries_client_stop_after_failure(
     hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     coordinator, client, _entry = await start_coordinator(hass)
-    client.stop_results = [PlaceConnectionError("stop failed"), None]
+    canary = "PRIVATE_STOP_ERROR_7F31"
+    raw_error = PlaceConnectionError(canary)
+    client.stop_results = [raw_error, None]
+    caplog.set_level(logging.DEBUG)
 
-    with pytest.raises(PlaceConnectionError, match="stop failed"):
+    with pytest.raises(PlaceConnectionError) as error_info:
         await coordinator.async_shutdown()
+    public_error = error_info.value
+    assert public_error is not raw_error
+    assert public_error.__cause__ is None
+    assert public_error.__context__ is None
+    serialized = json.dumps(
+        {
+            "error": public_error,
+            "traceback": traceback.format_exception(public_error),
+            "logs": caplog.text,
+        },
+        default=str,
+    )
+    assert canary not in serialized
+    assert "PlaceConnectionError" in serialized
+    assert client.stop_calls == 1
+    assert client.stop_completed is False
+    assert client.update_callbacks == []
+    assert client.event_callbacks == []
+    assert client.connection_callbacks == []
+    assert client.error_callbacks == []
+
     await coordinator.async_shutdown()
 
     assert client.stop_calls == _EXPECTED_RETRIED_STOP_CALLS

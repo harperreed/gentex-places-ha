@@ -61,11 +61,13 @@ _LOCATION_CANARY = "PRIVATE_LOCATION_88BC"
 _MQTT_TOPIC_CANARY = "PRIVATE_MQTT_TOPIC_142D"
 _RAW_PAYLOAD_CANARY = "PRIVATE_RAW_PAYLOAD_39F0"
 _ACCESS_TOKEN_CANARY = "PRIVATE_ACCESS_TOKEN_2E74"
+_ID_TOKEN_CANARY = "PRIVATE_ID_TOKEN_5A19"
 _AWS_ACCESS_KEY_CANARY = "PRIVATE_AWS_ACCESS_KEY_91C8"
 _AWS_SECRET_KEY_CANARY = "PRIVATE_AWS_SECRET_KEY_A506"
 _AWS_SESSION_TOKEN_CANARY = "PRIVATE_AWS_SESSION_TOKEN_B731"
 _HOUSEHOLD_CANARY = "PRIVATE_HOUSEHOLD_C024"
 _DIAGNOSTIC_ERROR_CANARY = "PRIVATE_DIAGNOSTIC_ERROR_D983"
+_EXPECTED_RETRIED_STOP_CALLS = 2
 
 _ALL_CANARIES = (
     _USERNAME_CANARY,
@@ -78,6 +80,7 @@ _ALL_CANARIES = (
     _MQTT_TOPIC_CANARY,
     _RAW_PAYLOAD_CANARY,
     _ACCESS_TOKEN_CANARY,
+    _ID_TOKEN_CANARY,
     _AWS_ACCESS_KEY_CANARY,
     _AWS_SECRET_KEY_CANARY,
     _AWS_SESSION_TOKEN_CANARY,
@@ -183,6 +186,8 @@ def _private_runtime(
     harness = install_runtime_fakes(monkeypatch, devices=[device])
     harness.client.__dict__["mqtt_topic"] = _MQTT_TOPIC_CANARY
     harness.client.__dict__["raw_payload"] = _RAW_PAYLOAD_CANARY
+    harness.auth.__dict__["id_token"] = _ID_TOKEN_CANARY
+    harness.client.__dict__["id_token"] = _ID_TOKEN_CANARY
     harness.client.__dict__["credentials"] = Credentials(
         access_key_id=_AWS_ACCESS_KEY_CANARY,
         secret_access_key=_AWS_SECRET_KEY_CANARY,
@@ -370,3 +375,33 @@ async def test_coordinator_error_boundaries_never_log_exception_messages(
         serialized, (refresh_canary, transient_canary, invalid_canary)
     )
     await coordinator.async_shutdown()
+
+
+async def test_ha_unload_sanitizes_stop_failure_and_allows_retry(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    canary = "PRIVATE_UNLOAD_STOP_ERROR_61BC"
+    raw_error = PlaceConnectionError(canary)
+    harness = install_runtime_fakes(monkeypatch, stop_results=[raw_error, None])
+    monkeypatch.setattr(integration_module, "PLATFORMS", [])
+    entry = _private_entry()
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id) is True
+    caplog.clear()
+    caplog.set_level(logging.DEBUG)
+
+    assert await hass.config_entries.async_unload(entry.entry_id) is False
+
+    assert entry.state is ConfigEntryState.FAILED_UNLOAD
+    assert entry.reason == "PlaceConnectionError"
+    assert harness.client.stop_calls == 1
+    assert harness.client.stop_completed is False
+    serialized = _serialized_logs(caplog)
+    assert canary not in serialized
+    assert "PlaceConnectionError" in serialized
+
+    assert await integration_module.async_unload_entry(hass, entry) is True
+    assert harness.client.stop_calls == _EXPECTED_RETRIED_STOP_CALLS
+    assert harness.client.stop_completed is True

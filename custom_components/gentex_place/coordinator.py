@@ -253,5 +253,11 @@ class GentexPlaceCoordinator(DataUpdateCoordinator[DeviceMap]):
                 self._motion_timers.clear()
                 await super().async_shutdown()
                 self._cleanup_complete = True
-            await self.client.stop()
+            stop_error: PlaceConnectionError | None = None
+            try:
+                await self.client.stop()
+            except PlaceConnectionError as err:
+                stop_error = PlaceConnectionError(type(err).__name__)
+            if stop_error is not None:
+                raise stop_error
             self._client_stopped = True
