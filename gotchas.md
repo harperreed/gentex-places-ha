@@ -13,3 +13,7 @@
 - Raising a sanitized error `from None` inside an `except` block still leaves the raw
   error in `__context__` or `sys.exception()`. Leave the handler before notifying or
   raising across the public boundary.
+- Plain SDK `PlaceConfig()` must use literal PLACE defaults. Only `from_env()` may
+  read process or `.env` values; ambient Home Assistant settings must not redirect it.
+- Config-entry token saves require the supplied username to match the entry username.
+  Never relabel a refresh token from one account as another account's token.

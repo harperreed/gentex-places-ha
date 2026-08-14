@@ -19,7 +19,7 @@
   future releases before they are tested.
 - The manifest always pins exactly `place-integration-api==0.3.0`. During Tasks 1–8,
   uv resolves that dependency from the non-editable sibling SDK checkout at verified
-  commit `807112d`. This development lock is not a release lock.
+  commit `6d7536a`. This development lock is not a release lock.
 - SDK plan `2026-08-12-place-sdk-auth-contract.md` has landed on the sibling checkout's
   local `master`. Task 9 may not begin until PyPI serves the same 0.3.0 contract; at
   that point remove the local uv source and regenerate the lock from PyPI. Do not fake
@@ -62,7 +62,7 @@ git status --short --branch
 test "$(git branch --show-current)" = "wip/gentex-place-integration"
 uv python install 3.14.2
 test "$(git -C ../place-integration-api rev-parse HEAD)" = \
-  "807112d21e1427f7a246d126736b3ada06c6f2ed"
+  "6d7536a28da0b3a272fdc839d4bce04e32ca8b95"
 uv run --isolated --python 3.14.2 --with ../place-integration-api python -c \
   'from place import CognitoAuth, PlaceClient, PlaceInvalidAuthError, PlaceTransientAuthError, __version__; assert __version__ == "0.3.0"'
 ```
@@ -73,6 +73,8 @@ verified local SDK 0.3.0 exposes the required public imports.
 ---
 
 ### Task 1: Reproducible project and token store
+
+**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality reviews approved. Development uses local SDK `6d7536a`.
 
 **Files:**
 - Create: `pyproject.toml`
@@ -92,7 +94,7 @@ verified local SDK 0.3.0 exposes the required public imports.
 - Consumes: SDK `TokenCache`, `CognitoAuth`, `PlaceClient`, `PlaceConfig`.
 - Produces: `MemoryTokenCache`, `ConfigEntryTokenCache`, `create_auth(hass, token_cache)`, `create_client(auth)`, constants, and typed `GentexPlaceConfigEntry` placeholder.
 
-- [ ] **Step 1: Create the minimal test environment**
+- [x] **Step 1: Create the minimal test environment**
 
 Create `pyproject.toml`:
 
@@ -160,7 +162,7 @@ uv lock
 Expected: dependency resolution succeeds on Python 3.14 and the locked non-editable
 local SDK reports version `0.3.0`.
 
-- [ ] **Step 2: Write failing token-cache tests**
+- [x] **Step 2: Write failing token-cache tests**
 
 Create `tests/components/gentex_place/test_auth.py`:
 
@@ -220,13 +222,13 @@ def test_memory_token_cache_keeps_only_sdk_token_fields() -> None:
     assert cache.load() == {"username": "alice", "refresh_token": "refresh"}
 ```
 
-- [ ] **Step 3: Run tests and confirm missing integration files**
+- [x] **Step 3: Run tests and confirm missing integration files**
 
 Run: `uv run pytest tests/components/gentex_place/test_auth.py -q`
 
 Expected: collection FAIL because `custom_components.gentex_place` does not exist.
 
-- [ ] **Step 4: Implement constants, manifest, token adapter, and factories**
+- [x] **Step 4: Implement constants, manifest, token adapter, and factories**
 
 Create `const.py` with:
 
@@ -319,7 +321,7 @@ def create_client(auth: CognitoAuth) -> PlaceClient:
 
 Create `manifest.json` with version `0.1.0`, `cloud_push`, `hub`, config flow, repo URLs, `@harperreed`, and exact requirement `place-integration-api==0.3.0`. Create an empty lifecycle `__init__.py` with its required `ABOUTME:` header. Create root `hacs.json` as `{"name": "Gentex PLACE", "homeassistant": "2026.8.1"}`, `.python-version` as `3.14`, and copy the SDK repository's MIT license text into `LICENSE` after verifying its copyright wording.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run:
 
@@ -888,7 +890,7 @@ Confirm PyPI serves SDK 0.3.0 with the required public imports. Remove
 `[tool.uv.sources]` from `pyproject.toml`, run `uv lock --refresh-package
 place-integration-api`, and inspect `uv.lock` to prove the SDK source is the registry,
 not a path. Run the full suite before any CI or release claim. Stop here if PyPI 0.3.0
-is unavailable or its wheel contract differs from local commit `807112d`.
+is unavailable or its wheel contract differs from local commit `6d7536a`.
 
 - [ ] **Step 1: Add manifest/repository contract tests**
 
