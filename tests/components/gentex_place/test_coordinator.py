@@ -270,16 +270,21 @@ async def test_motion_event_uses_known_device_id_when_thing_name_is_absent(
     monkeypatch.setattr(
         "custom_components.gentex_place.coordinator.time.monotonic", clock
     )
+    motion_updates: list[bool] = []
+    remove_listener = coordinator.async_add_listener(
+        lambda: motion_updates.append(coordinator.motion_active("thing-1"))
+    )
 
     client.emit_event(
         DeviceEvent(event_type="motionDetected", device_id="device-1"), now=100.0
     )
 
-    assert coordinator.motion_active("thing-1") is True
+    assert motion_updates == [True]
     clock.value = 100.0 + MOTION_WINDOW_SECONDS + 0.001
     async_fire_time_changed(hass, datetime.now(UTC) + timedelta(seconds=31))
     await hass.async_block_till_done()
-    assert coordinator.motion_active("thing-1") is False
+    assert motion_updates == [True, False]
+    remove_listener()
     await coordinator.async_shutdown()
 
 
