@@ -47,6 +47,10 @@ form, `URL?rev=<full SHA>#<full SHA>`; do not hand-normalize it to
 
 ### Task 1: Publish the approved SDK commit
 
+**State:** Complete. Public SDK `master` is
+`7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; this publication task created no
+Home Assistant commit.
+
 **Files:**
 - Verify only: `/Users/harper/Public/src/personal/place-integration-api`
 
@@ -111,6 +115,10 @@ Expected: all checks exit zero. This task creates no new commit because it publi
 ---
 
 ### Task 2: Pin and prove the Git dependency
+
+**State:** Complete in `e14a99a7f58f86c0ba44e554e3ebc66ae9cf35b4`, with
+canonical uv lock representation follow-up
+`c3fd496abd54eb59597262c6b45e0cedb9e85bf2`.
 
 **Files:**
 - Create: `tests/components/gentex_place/test_manifest.py`
@@ -349,6 +357,9 @@ Expected: one commit contains only the two declarations, generated lock, contrac
 
 ### Task 3: Retire the stale PyPI blocker
 
+**State:** Complete in `98987d0d942f5f0916142ca2903e9632afc1bbad`, with
+active-preflight follow-up `2f974fe3a784c9acd1fe289991040ab262c18d58`.
+
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-12-gentex-place-home-assistant.md`
 - Modify: `docs/superpowers/specs/2026-08-12-gentex-place-home-assistant-design.md`
@@ -434,6 +445,26 @@ Expected: the commit changes only the active plan, original design notice, and d
 ---
 
 ### Task 4: Verify the completed dependency migration
+
+**State:** Local verification complete after test-only coverage commits
+`15baa970adba6292bf89027ff509edcbc20cc657` and
+`9eb571ad4b883e2f984bad4e5b5d074d46b84b6b`. Fresh-eyes review found no open
+migration issue. The independent Task 4 review and final whole-branch review remain
+pending.
+
+**Verification:** Public SDK `master` resolves to
+`7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; direct and locked clean installs pass;
+format, lint, type, and full coverage gates pass. `pip-audit` still reports only the
+three documented Home Assistant `cryptography==48.0.1` findings. HACS and Hassfest
+remote jobs, integration repository push, release, brand approval, live-account
+check, PyPI publication, and Home Assistant Core submission remain outside this plan.
+
+Fresh local evidence on 2026-08-19: the focused metadata tests pass 2/2; the full
+suite passes 381/381 with all 679 production statements covered; `uv lock --check`
+leaves lock SHA-256
+`136e1bc48ed383f953ce2fc3ddd4267adf7e0d51dbc784608f5b20d17b6d3fad`
+unchanged; and unsuppressed `pip-audit` exits 1 with exactly `PYSEC-2026-3552`,
+`PYSEC-2026-3553`, and `PYSEC-2026-3554` plus the expected Git SDK skip.
 
 **Files:**
 - Modify after verification: `docs/superpowers/plans/2026-08-19-git-sdk-dependency.md`
