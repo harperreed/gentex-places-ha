@@ -2,6 +2,12 @@
 <!-- ABOUTME: Keeps Home Assistant behavior tied to verified SDK and platform contracts. -->
 # Gentex PLACE Home Assistant integration — design
 
+> **Distribution update (2026-08-19):** The approved
+> [Git SDK dependency design](2026-08-19-git-sdk-dependency-design.md) supersedes
+> this document's PyPI-only manifest and release-blocker statements for HACS custom
+> distribution. Home Assistant Core submission still requires a suitable PyPI
+> release.
+
 - **Date:** 2026-08-12
 - **Status:** approved and reviewed
 - **Branch:** `wip/gentex-place-integration`

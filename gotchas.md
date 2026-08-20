@@ -48,6 +48,7 @@
 - PLACE account titles use the lowest free generic ordinal, while an existing safe
   ordinal stays stable. Concurrent flows can choose the same cosmetic title, but the
   account unique ID remains the duplicate-account authority.
-- PyPI currently serves the official PLACE SDK through `0.2.4`, but this integration
-  requires the local `0.3.0` contract. Keep the sibling uv source until Doctor Biz
-  authorizes a compatible release or a different packaging design.
+- HACS installs the forked PLACE SDK from public Git commit
+  `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; keep the manifest, pyproject, and
+  lock on that full SHA with no sibling uv source. PyPI remains required only for a
+  future Home Assistant Core submission.

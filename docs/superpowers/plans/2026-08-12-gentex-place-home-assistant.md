@@ -1,5 +1,5 @@
 <!-- ABOUTME: Plans the HACS-ready Gentex PLACE integration in test-first steps. -->
-<!-- ABOUTME: Uses the verified local SDK for development and PyPI for release gates. -->
+<!-- ABOUTME: Uses one immutable public Git SDK commit for HACS distribution. -->
 # Gentex PLACE Home Assistant Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -8,7 +8,7 @@
 
 **Architecture:** One typed `GentexPlaceCoordinator` owns one async SDK client per config entry. The SDK's mutable device registry is the single source of truth; MQTT callbacks and a fixed health timer notify `CoordinatorEntity` views. Config flows store only username, refresh token, and stable account identity.
 
-**Tech Stack:** Python 3.14.2, Home Assistant 2026.8.1, `place-integration-api==0.3.0`, asyncio/aiohttp, pytest-homeassistant-custom-component 0.13.355, pytest, Ruff, basedpyright, uv, Hassfest, HACS Action.
+**Tech Stack:** Python 3.14.2, Home Assistant 2026.8.1, `place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`, asyncio/aiohttp, pytest-homeassistant-custom-component 0.13.355, pytest, Ruff, basedpyright, uv, Hassfest, HACS Action.
 
 ## Global Constraints
 
@@ -17,12 +17,11 @@
 - Minimum supported Home Assistant is `2026.8.1`; Python floor is `3.14.2`. CI tests
   that minimum and a scheduled latest-stable resolver, but does not promise unknown
   future releases before they are tested.
-- The manifest always pins exactly `place-integration-api==0.3.0`. During Tasks 1–8,
-  uv resolves that dependency from the non-editable sibling SDK checkout at verified
-  commit `7f9f6bb`. This development lock is not a release lock.
-- SDK plan `2026-08-12-place-sdk-auth-contract.md` has landed on the sibling checkout's
-  local `master`. Task 9 may not begin until PyPI serves the same 0.3.0 contract; at
-  that point remove the local uv source and regenerate the lock from PyPI. Do not fake
+- The manifest and development dependency always use
+  `place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`.
+  `uv.lock` resolves that public HTTPS Git source at the same full SHA with no sibling
+  directory source.
+- Task 9 may begin after `2026-08-19-git-sdk-dependency.md` is complete. Do not fake
   public SDK methods or inspect SDK private fields.
 - First release is read-only: no desired-state publish, commands, control entities, or services.
 - Store username, refresh token, and account identity only. Never persist password, MFA code, access/ID token, temporary AWS keys, or raw payloads.
@@ -63,8 +62,7 @@ test "$(git branch --show-current)" = "wip/gentex-place-integration"
 uv python install 3.14.2
 test "$(git -C ../place-integration-api rev-parse HEAD)" = \
   "7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"
-uv run --isolated --python 3.14.2 --with ../place-integration-api python -c \
-  'from place import CognitoAuth, PlaceClient, PlaceInvalidAuthError, PlaceTransientAuthError, __version__; assert __version__ == "0.3.0"'
+scripts/check_sdk_dependency
 ```
 
 Expected: the approved spec is committed, only planned files are changed, and the
@@ -921,10 +919,7 @@ git commit -m "feat: add private PLACE diagnostics"
 
 ### Task 9: Canonical checks and CI validation
 
-**State:** Blocked at Step 0 on 2026-08-14. PyPI serves the official SDK only
-through `0.2.4`; the required `0.3.0` endpoint returns 404. Doctor Biz does not
-want to publish `0.3.0` now, so the local sibling source remains in `pyproject.toml`
-and `uv.lock`. Do not add a CI workflow that cannot resolve its pinned dependency.
+**State:** Ready after 2026-08-19-git-sdk-dependency.md is complete
 
 **Files:**
 - Create: `scripts/check`
@@ -939,13 +934,13 @@ and `uv.lock`. Do not add a CI workflow that cannot resolve its pinned dependenc
 - Consumes: complete integration.
 - Produces: one local/CI quality command and HACS/Hassfest checks.
 
-- [ ] **Step 0: Replace the development SDK source with PyPI**
+- [ ] **Step 0: Verify the public Git SDK contract**
 
-Confirm PyPI serves SDK 0.3.0 with the required public imports. Remove
-`[tool.uv.sources]` from `pyproject.toml`, run `uv lock --refresh-package
-place-integration-api`, and inspect `uv.lock` to prove the SDK source is the registry,
-not a path. Run the full suite before any CI or release claim. Stop here if PyPI 0.3.0
-is unavailable or its wheel contract differs from local commit `7f9f6bb`.
+Run `scripts/check_sdk_dependency` and the focused manifest tests. Inspect
+`manifest.json`, `pyproject.toml`, and `uv.lock` to confirm they resolve the public
+SDK at `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` with no directory source. Stop if
+the clean install or public API import contract differs from the approved dependency
+design.
 
 - [ ] **Step 1: Add manifest/repository contract tests**
 
@@ -954,7 +949,7 @@ Create tests that load JSON and assert:
 ```python
 assert manifest["domain"] == "gentex_place"
 assert manifest["version"] == project["project"]["version"]
-assert manifest["requirements"] == ["place-integration-api==0.3.0"]
+assert manifest["requirements"] == ["place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"]
 assert manifest["config_flow"] is True
 assert manifest["iot_class"] == "cloud_push"
 assert hacs["homeassistant"] == "2026.8.1"
