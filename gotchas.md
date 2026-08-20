@@ -23,9 +23,10 @@
 - Normalize built-in and aiohttp discovery timeouts to `PlaceTimeoutError` inside the
   SDK. In Home Assistant, translate timeouts only at explicit SDK await boundaries so
   programmer `TimeoutError` exceptions still surface.
-- Home Assistant 2026.8.1 exact-pins vulnerable `cryptography==48.0.1`. Do not force a
-  newer cryptography over that pin; move to a fixed supported HA release or record an
-  explicit risk exception before release, then rerun `pip-audit`.
+- Doctor Biz approved a narrow audit exception for Home Assistant 2026.8.1's exact
+  `cryptography==48.0.1` pin and only `PYSEC-2026-3552`, `PYSEC-2026-3553`, and
+  `PYSEC-2026-3554`. The canonical audit must fail closed on any version or finding
+  drift; never force a newer cryptography over Home Assistant's pin.
 - SDK shutdown must consume cancellation from its owned MQTT task while preserving a
   new caller cancellation. Snapshot the caller's cancellation count so cleanup inside
   an existing `CancelledError` handler does not mistake owned cancellation for a new one.
@@ -52,6 +53,7 @@
   `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; keep the manifest, pyproject, and
   lock on that full SHA with no sibling uv source. PyPI remains required only for a
   future Home Assistant Core submission.
-- The Git SDK milestone is approved, but the integration is not merge- or
-  release-ready: add the `place` manifest logger, complete Tasks 9-11, and keep the
-  three Home Assistant-pinned cryptography advisories and remote release gates open.
+- Task 9 local validation includes the `place` logger and a fail-closed exception for
+  the three approved cryptography findings. HACS default inclusion remains blocked on
+  licensed brand art with provenance; remote HACS/Hassfest, live-account, README, and
+  release gates also remain open.

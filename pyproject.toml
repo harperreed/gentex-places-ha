@@ -34,4 +34,4 @@ ignore = ["COM812", "D203", "D213"]
 [tool.basedpyright]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"
-include = ["custom_components/gentex_place", "tests"]
+include = ["custom_components/gentex_place", "scripts", "tests"]
