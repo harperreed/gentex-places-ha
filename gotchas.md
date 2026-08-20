@@ -52,3 +52,6 @@
   `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; keep the manifest, pyproject, and
   lock on that full SHA with no sibling uv source. PyPI remains required only for a
   future Home Assistant Core submission.
+- The Git SDK milestone is approved, but the integration is not merge- or
+  release-ready: add the `place` manifest logger, complete Tasks 9-11, and keep the
+  three Home Assistant-pinned cryptography advisories and remote release gates open.

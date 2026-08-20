@@ -451,8 +451,9 @@ Expected: the commit changes only the active plan, original design notice, and d
 `9eb571ad4b883e2f984bad4e5b5d074d46b84b6b`. Fresh-eyes review found no open
 migration issue. Public-contract follow-up
 `9c021ad16dba471757c6330d8091a9ee6838c4c2` makes both clean-install environments
-run one complete consumed-export and version checker. Independent approval of the
-follow-up and the final whole-branch review remain pending.
+run one complete consumed-export and version checker. Independent Task 4 review and
+the final whole-branch review approved the Git dependency milestone at
+`9fcf8f8eb152ea8cae6aa4bd92d547d23bccd823` with no open milestone finding.
 
 **Verification:** Public SDK `master` resolves to
 `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; direct and locked clean installs pass;
@@ -469,6 +470,14 @@ unchanged; and unsuppressed `pip-audit` exits 1 with exactly `PYSEC-2026-3552`,
 `PYSEC-2026-3553`, and `PYSEC-2026-3554` plus the expected Git SDK skip. The direct
 and copied-lock interpreters both pass the same full public contract checker; a
 temporary real-package mutation proves it rejects a missing required export.
+
+**Whole-branch review:** The full integration is not ready to merge or release. The
+manifest still needs `"loggers": ["place"]`; main-plan Tasks 9-11 still need the
+canonical check, CI and remote validators, user docs and guarded live check, packaged
+system scenario, and release workflow; and the three visible `cryptography==48.0.1`
+advisories remain a release blocker unless a formal risk exception is approved. Brand
+rights, remote HACS/Hassfest results, integration-repository push, and live-account
+verification also remain unclaimed.
 
 **Files:**
 - Modify after verification: `docs/superpowers/plans/2026-08-19-git-sdk-dependency.md`
