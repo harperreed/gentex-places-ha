@@ -6,6 +6,7 @@ set -eu
 sdk_requirement='place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad'
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+contract_checker="$script_dir/check_sdk_contract.py"
 check_root=$(mktemp -d "${TMPDIR:-/tmp}/gentex-place-sdk-check.XXXXXX")
 trap 'rm -rf "$check_root"' EXIT HUP INT TERM
 
@@ -17,27 +18,7 @@ uv venv --python 3.14.2 "$direct_root/.venv"
 uv pip install --python "$direct_root/.venv/bin/python" "$sdk_requirement"
 (
     cd "$direct_root"
-    PYTHONPATH= "$direct_root/.venv/bin/python" - <<'PY'
-from place import (
-    AlarmStatus,
-    CognitoAuth,
-    DeviceEvent,
-    MfaRequired,
-    PlaceAuthError,
-    PlaceClient,
-    PlaceConfig,
-    PlaceConnectionError,
-    PlaceDevice,
-    PlaceDiscoveryError,
-    PlaceError,
-    PlaceInvalidAuthError,
-    PlaceTimeoutError,
-    PlaceTransientAuthError,
-    __version__,
-)
-
-assert __version__ == "0.3.0"
-PY
+    PYTHONPATH= "$direct_root/.venv/bin/python" "$contract_checker"
 )
 
 cp "$repository_root/pyproject.toml" "$locked_root/pyproject.toml"
@@ -46,6 +27,5 @@ cp "$repository_root/.python-version" "$locked_root/.python-version"
 uv sync --locked --project "$locked_root" --python 3.14.2
 (
     cd "$locked_root"
-    PYTHONPATH= "$locked_root/.venv/bin/python" -c \
-        'import place; assert place.__version__ == "0.3.0"'
+    PYTHONPATH= "$locked_root/.venv/bin/python" "$contract_checker"
 )
