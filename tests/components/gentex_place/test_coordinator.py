@@ -213,6 +213,76 @@ async def test_motion_remains_active_through_window(
     await coordinator.async_shutdown()
 
 
+async def test_motion_is_inactive_for_absent_device(hass: HomeAssistant) -> None:
+    coordinator, _client, _entry = await start_coordinator(hass)
+
+    assert coordinator.motion_active("missing-thing") is False
+
+    await coordinator.async_shutdown()
+
+
+async def test_non_motion_event_does_not_create_motion_window(
+    hass: HomeAssistant,
+) -> None:
+    coordinator, client, _entry = await start_coordinator(hass)
+    motion_updates: list[bool] = []
+    remove_listener = coordinator.async_add_listener(
+        lambda: motion_updates.append(coordinator.motion_active("thing-1"))
+    )
+
+    client.emit_event(
+        DeviceEvent(event_type="buttonPressed", thing_name="thing-1"), now=100.0
+    )
+    async_fire_time_changed(hass, datetime.now(UTC) + timedelta(seconds=31))
+    await hass.async_block_till_done()
+
+    assert motion_updates == [False]
+    assert coordinator.motion_active("thing-1") is False
+    remove_listener()
+    await coordinator.async_shutdown()
+
+
+async def test_unknown_device_motion_event_is_ignored(hass: HomeAssistant) -> None:
+    coordinator, client, _entry = await start_coordinator(hass)
+    motion_updates: list[bool] = []
+    remove_listener = coordinator.async_add_listener(
+        lambda: motion_updates.append(coordinator.motion_active("thing-1"))
+    )
+
+    client.emit_event(
+        DeviceEvent(event_type="motionDetected", thing_name="missing-thing"),
+        now=100.0,
+    )
+    async_fire_time_changed(hass, datetime.now(UTC) + timedelta(seconds=31))
+    await hass.async_block_till_done()
+
+    assert motion_updates == []
+    assert coordinator.motion_active("thing-1") is False
+    remove_listener()
+    await coordinator.async_shutdown()
+
+
+async def test_motion_event_uses_known_device_id_when_thing_name_is_absent(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coordinator, client, _entry = await start_coordinator(hass)
+    clock = MonotonicClock(100.0)
+    monkeypatch.setattr(
+        "custom_components.gentex_place.coordinator.time.monotonic", clock
+    )
+
+    client.emit_event(
+        DeviceEvent(event_type="motionDetected", device_id="device-1"), now=100.0
+    )
+
+    assert coordinator.motion_active("thing-1") is True
+    clock.value = 100.0 + MOTION_WINDOW_SECONDS + 0.001
+    async_fire_time_changed(hass, datetime.now(UTC) + timedelta(seconds=31))
+    await hass.async_block_till_done()
+    assert coordinator.motion_active("thing-1") is False
+    await coordinator.async_shutdown()
+
+
 async def test_repeated_motion_replaces_clear_timer_and_notifies_once_at_end(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:

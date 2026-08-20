@@ -296,6 +296,28 @@ async def test_mfa_challenge_shows_mfa_form_without_using_post_auth_calls(
     _assert_no_secrets(result, caplog)
 
 
+async def test_mfa_step_without_submission_redisplays_mfa_form(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_place_fakes(
+        monkeypatch,
+        authenticate_results=[
+            MfaRequired(
+                challenge_name="SMS_MFA", session="SESSION-CANARY", username="alice"
+            )
+        ],
+    )
+    form = await _start_user_flow(hass)
+    mfa_form = await _submit_user(hass, form["flow_id"])
+
+    result = await hass.config_entries.flow.async_configure(mfa_form["flow_id"])
+
+    assert result.get("type") is FlowResultType.FORM
+    assert result.get("step_id") == "mfa"
+    assert result.get("errors") == {}
+
+
 async def test_invalid_mfa_code_returns_same_form_without_discovery(
     hass: HomeAssistant,
     monkeypatch: pytest.MonkeyPatch,
@@ -735,6 +757,94 @@ async def test_missing_cached_refresh_token_returns_cannot_connect(
     _assert_form(result, "user", "cannot_connect")
 
 
+async def test_missing_flow_client_after_mfa_returns_cannot_connect(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    flows = _capture_next_flow(monkeypatch)
+    install_place_fakes(
+        monkeypatch,
+        authenticate_results=[
+            MfaRequired(
+                challenge_name="SMS_MFA", session="SESSION-CANARY", username="alice"
+            )
+        ],
+    )
+    form = await _start_user_flow(hass)
+    mfa_form = await _submit_user(hass, form["flow_id"])
+    vars(flows[0])["_client"] = None
+
+    result = await _submit_mfa(hass, mfa_form["flow_id"])
+
+    _assert_form(result, "user", "cannot_connect")
+    _assert_flow_state_cleared(flows[0])
+
+
+async def test_missing_refresh_token_value_returns_cannot_connect(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness = install_place_fakes(
+        monkeypatch,
+        authenticate_results=[
+            MfaRequired(
+                challenge_name="SMS_MFA", session="SESSION-CANARY", username="alice"
+            )
+        ],
+    )
+    form = await _start_user_flow(hass)
+    mfa_form = await _submit_user(hass, form["flow_id"])
+    assert harness.auth is not None
+    harness.auth.save_token = False
+    assert harness.token_cache is not None
+    vars(harness.token_cache)["_data"] = {
+        CONF_USERNAME: "alice",
+        CONF_REFRESH_TOKEN: None,
+    }
+
+    result = await _submit_mfa(hass, mfa_form["flow_id"])
+
+    _assert_form(result, "user", "cannot_connect")
+    assert harness.token_cache.load() is None
+
+
+async def test_unexpected_login_error_propagates_and_clears_flow_state(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    flows = _capture_next_flow(monkeypatch)
+    install_place_fakes(
+        monkeypatch, authenticate_results=[RuntimeError("programmer bug")]
+    )
+    form = await _start_user_flow(hass)
+
+    with pytest.raises(RuntimeError, match="programmer bug"):
+        await _submit_user(hass, form["flow_id"])
+
+    _assert_flow_state_cleared(flows[0])
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
+async def test_unexpected_mfa_error_propagates_and_clears_flow_state(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    flows = _capture_next_flow(monkeypatch)
+    install_place_fakes(
+        monkeypatch,
+        authenticate_results=[
+            MfaRequired(
+                challenge_name="SMS_MFA", session="SESSION-CANARY", username="alice"
+            )
+        ],
+        mfa_results=[RuntimeError("programmer bug")],
+    )
+    form = await _start_user_flow(hass)
+    mfa_form = await _submit_user(hass, form["flow_id"])
+
+    with pytest.raises(RuntimeError, match="programmer bug"):
+        await _submit_mfa(hass, mfa_form["flow_id"])
+
+    _assert_flow_state_cleared(flows[0])
+    assert hass.config_entries.async_entries(DOMAIN) == []
+
+
 async def test_unexpected_programmer_error_propagates(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -802,6 +912,26 @@ async def test_reauth_success_updates_only_refresh_token_and_reloads(
     ]
     assert harness.token_cache is not None
     assert harness.token_cache.load() is None
+
+
+async def test_unexpected_reauth_login_error_propagates_and_clears_flow_state(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    flows = _capture_next_flow(monkeypatch)
+    entry = _reauth_entry(hass)
+    old_data = dict(entry.data)
+    install_place_fakes(
+        monkeypatch, authenticate_results=[RuntimeError("programmer bug")]
+    )
+    form = await start_reauth_flow(hass, entry)
+
+    with pytest.raises(RuntimeError, match="programmer bug"):
+        await hass.config_entries.flow.async_configure(
+            form["flow_id"], {CONF_PASSWORD: PASSWORD}
+        )
+
+    _assert_flow_state_cleared(flows[0])
+    assert entry.data == old_data
 
 
 @pytest.mark.parametrize(
