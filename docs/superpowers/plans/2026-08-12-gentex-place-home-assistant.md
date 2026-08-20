@@ -60,13 +60,11 @@ cd /Users/harper/Public/src/personal/gentex-places-ha
 git status --short --branch
 test "$(git branch --show-current)" = "wip/gentex-place-integration"
 uv python install 3.14.2
-test "$(git -C ../place-integration-api rev-parse HEAD)" = \
-  "7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"
 scripts/check_sdk_dependency
 ```
 
 Expected: the approved spec is committed, only planned files are changed, and the
-verified local SDK 0.3.0 exposes the required public imports.
+approved public SDK commit and required imports are verified.
 
 ---
 
