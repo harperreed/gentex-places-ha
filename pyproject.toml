@@ -8,7 +8,7 @@ dependencies = []
 dev = [
   "basedpyright==1.39.9",
   "pip-audit==2.10.1",
-  "place-integration-api==0.3.0",
+  "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad",
   "pytest-cov==7.1.0",
   "pytest-homeassistant-custom-component==0.13.355",
   "ruff==0.16.2",
@@ -35,6 +35,3 @@ ignore = ["COM812", "D203", "D213"]
 pythonVersion = "3.14"
 typeCheckingMode = "standard"
 include = ["custom_components/gentex_place", "tests"]
-
-[tool.uv.sources]
-place-integration-api = { path = "../place-integration-api", editable = false }

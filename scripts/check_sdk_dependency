@@ -1,0 +1,51 @@
+#!/bin/sh
+# ABOUTME: Proves direct and locked installs fetch the approved public PLACE SDK.
+# ABOUTME: Uses temporary environments outside both source checkouts.
+set -eu
+
+sdk_requirement='place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad'
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repository_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
+check_root=$(mktemp -d "${TMPDIR:-/tmp}/gentex-place-sdk-check.XXXXXX")
+trap 'rm -rf "$check_root"' EXIT HUP INT TERM
+
+direct_root="$check_root/direct"
+locked_root="$check_root/locked"
+mkdir -p "$direct_root" "$locked_root"
+
+uv venv --python 3.14.2 "$direct_root/.venv"
+uv pip install --python "$direct_root/.venv/bin/python" "$sdk_requirement"
+(
+    cd "$direct_root"
+    PYTHONPATH= "$direct_root/.venv/bin/python" - <<'PY'
+from place import (
+    AlarmStatus,
+    CognitoAuth,
+    DeviceEvent,
+    MfaRequired,
+    PlaceAuthError,
+    PlaceClient,
+    PlaceConfig,
+    PlaceConnectionError,
+    PlaceDevice,
+    PlaceDiscoveryError,
+    PlaceError,
+    PlaceInvalidAuthError,
+    PlaceTimeoutError,
+    PlaceTransientAuthError,
+    __version__,
+)
+
+assert __version__ == "0.3.0"
+PY
+)
+
+cp "$repository_root/pyproject.toml" "$locked_root/pyproject.toml"
+cp "$repository_root/uv.lock" "$locked_root/uv.lock"
+cp "$repository_root/.python-version" "$locked_root/.python-version"
+uv sync --locked --project "$locked_root" --python 3.14.2
+(
+    cd "$locked_root"
+    PYTHONPATH= "$locked_root/.venv/bin/python" -c \
+        'import place; assert place.__version__ == "0.3.0"'
+)
