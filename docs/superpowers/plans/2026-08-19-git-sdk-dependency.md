@@ -449,8 +449,10 @@ Expected: the commit changes only the active plan, original design notice, and d
 **State:** Local verification complete after test-only coverage commits
 `15baa970adba6292bf89027ff509edcbc20cc657` and
 `9eb571ad4b883e2f984bad4e5b5d074d46b84b6b`. Fresh-eyes review found no open
-migration issue. The independent Task 4 review and final whole-branch review remain
-pending.
+migration issue. Public-contract follow-up
+`9c021ad16dba471757c6330d8091a9ee6838c4c2` makes both clean-install environments
+run one complete consumed-export and version checker. Independent approval of the
+follow-up and the final whole-branch review remain pending.
 
 **Verification:** Public SDK `master` resolves to
 `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; direct and locked clean installs pass;
@@ -464,7 +466,9 @@ suite passes 381/381 with all 679 production statements covered; `uv lock --chec
 leaves lock SHA-256
 `136e1bc48ed383f953ce2fc3ddd4267adf7e0d51dbc784608f5b20d17b6d3fad`
 unchanged; and unsuppressed `pip-audit` exits 1 with exactly `PYSEC-2026-3552`,
-`PYSEC-2026-3553`, and `PYSEC-2026-3554` plus the expected Git SDK skip.
+`PYSEC-2026-3553`, and `PYSEC-2026-3554` plus the expected Git SDK skip. The direct
+and copied-lock interpreters both pass the same full public contract checker; a
+temporary real-package mutation proves it rejects a missing required export.
 
 **Files:**
 - Modify after verification: `docs/superpowers/plans/2026-08-19-git-sdk-dependency.md`
