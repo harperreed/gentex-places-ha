@@ -10,6 +10,11 @@
 
 **Tech Stack:** Git, GitHub HTTPS, Python 3.14.2, uv 0.9.25, pytest, TOML/JSON metadata, POSIX shell.
 
+**Lock representation decision (2026-08-19):** Doctor Biz chose uv-generated
+reproducibility as the source of truth. Keep uv 0.9.25's canonical Git source
+form, `URL?rev=<full SHA>#<full SHA>`; do not hand-normalize it to
+`URL#<full SHA>`.
+
 ## Global Constraints
 
 - The only SDK commit approved for publication is `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` on local SDK branch `master`.
@@ -116,7 +121,7 @@ Expected: all checks exit zero. This task creates no new commit because it publi
 
 **Interfaces:**
 - Consumes: public SDK commit `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` from Task 1 and existing project metadata.
-- Produces: `_SDK_REQUIREMENT: str` as the test's one expected dependency value; `scripts/check_sdk_dependency` as a no-argument clean-install gate; a lock entry whose source is `https://github.com/harperreed/place-integration-api.git#7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`.
+- Produces: `_SDK_REQUIREMENT: str` as the test's one expected dependency value; `scripts/check_sdk_dependency` as a no-argument clean-install gate; a lock entry whose source is `https://github.com/harperreed/place-integration-api.git?rev=7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad#7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`.
 
 - [ ] **Step 1: Write failing repository contract tests**
 
@@ -175,7 +180,7 @@ def test_lock_uses_the_approved_public_sdk_commit() -> None:
     )
 
     assert sdk_package["version"] == "0.3.0"
-    assert sdk_package["source"] == {"git": f"{_SDK_GIT_URL}#{_SDK_SHA}"}
+    assert sdk_package["source"] == {"git": f"{_SDK_GIT_URL}?rev={_SDK_SHA}#{_SDK_SHA}"}
     assert all(
         package.get("source", {}).get("directory") != "../place-integration-api"
         for package in lock["package"]
@@ -229,7 +234,7 @@ diff -u "$baseline_lock" uv.lock || true
 rm "$baseline_lock"
 ```
 
-Expected: the root package metadata records the exact direct Git requirement; the SDK package is version `0.3.0`; its source is `https://github.com/harperreed/place-integration-api.git#7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; no `../place-integration-api` source remains. Review the displayed baseline diff and stop if unrelated direct pins change.
+Expected: the root package metadata records the exact direct Git requirement; the SDK package is version `0.3.0`; its uv-generated source is `https://github.com/harperreed/place-integration-api.git?rev=7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad#7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; no `../place-integration-api` source remains. Review the displayed baseline diff and stop if unrelated direct pins change.
 
 - [ ] **Step 5: Run the focused tests and locked sync**
 

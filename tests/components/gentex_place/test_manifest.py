@@ -50,7 +50,7 @@ def test_lock_uses_the_approved_public_sdk_commit() -> None:
     )
 
     assert sdk_package["version"] == "0.3.0"
-    assert sdk_package["source"] == {"git": f"{_SDK_GIT_URL}#{_SDK_SHA}"}
+    assert sdk_package["source"] == {"git": f"{_SDK_GIT_URL}?rev={_SDK_SHA}#{_SDK_SHA}"}
     assert all(
         package.get("source", {}).get("directory") != "../place-integration-api"
         for package in lock["package"]
