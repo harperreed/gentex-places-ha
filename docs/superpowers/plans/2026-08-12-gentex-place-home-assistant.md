@@ -917,7 +917,11 @@ git commit -m "feat: add private PLACE diagnostics"
 
 ### Task 9: Canonical checks and CI validation
 
-**State:** Ready after 2026-08-19-git-sdk-dependency.md is complete
+**State:** Complete in commit `83f392d`. Spec and quality reviews approved.
+Fresh local `scripts/check` verification passes 390 tests at 100% coverage with
+zero lint or type findings. Doctor Biz approved the narrow fail-closed exception
+for the three Home Assistant-pinned cryptography findings. Remote HACS/Hassfest,
+licensed brand art, and live-account gates remain open and unclaimed.
 
 **Files:**
 - Create: `scripts/check`
@@ -932,7 +936,7 @@ git commit -m "feat: add private PLACE diagnostics"
 - Consumes: complete integration.
 - Produces: one local/CI quality command and HACS/Hassfest checks.
 
-- [ ] **Step 0: Verify the public Git SDK contract**
+- [x] **Step 0: Verify the public Git SDK contract**
 
 Run `scripts/check_sdk_dependency` and the focused manifest tests. Inspect
 `manifest.json`, `pyproject.toml`, and `uv.lock` to confirm they resolve the public
@@ -940,7 +944,7 @@ SDK at `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` with no directory source. Stop
 the clean install or public API import contract differs from the approved dependency
 design.
 
-- [ ] **Step 1: Add manifest/repository contract tests**
+- [x] **Step 1: Add manifest/repository contract tests**
 
 Create tests that load JSON and assert:
 
@@ -954,7 +958,7 @@ assert hacs["homeassistant"] == "2026.8.1"
 assert len([p for p in Path("custom_components").iterdir() if p.is_dir()]) == 1
 ```
 
-- [ ] **Step 2: Create the canonical check script**
+- [x] **Step 2: Create the canonical check script**
 
 Create executable `scripts/check`:
 
@@ -975,7 +979,7 @@ git diff --check
 
 Run `chmod +x scripts/check`.
 
-- [ ] **Step 3: Add official validation workflows**
+- [x] **Step 3: Add official validation workflows**
 
 Before adding the image, obtain a 256x256-or-larger PNG from Doctor Biz or another source with verified Gentex usage rights. Do not scrape or generate a lookalike mark. Record source, owner, license/permission, date obtained, and any modification in `docs/brand-provenance.md`. If no authorized image exists, omit both files and record HACS default inclusion as blocked; do not substitute a placeholder.
 
@@ -1014,7 +1018,7 @@ and validator versions without an unpinned CI environment.
 
 Keep all action references pinned to reviewed commit SHAs and let Dependabot propose updates.
 
-- [ ] **Step 4: Run local checks and record remote validator gates**
+- [x] **Step 4: Run local checks and record remote validator gates**
 
 Run:
 
@@ -1024,7 +1028,7 @@ scripts/check
 
 Expected: local checks exit zero. Hassfest and HACS remain pending until Doctor Biz authorizes a push that runs the pinned GitHub jobs; require both jobs to pass without ignores before a release claim. Do not claim either remote validator ran from this local command.
 
-- [ ] **Step 5: Fresh-eyes review and commit**
+- [x] **Step 5: Fresh-eyes review and commit**
 
 Run fresh-eyes review over all integration code, fix findings with tests, rerun `scripts/check`, then:
 
