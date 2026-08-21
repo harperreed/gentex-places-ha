@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -32,11 +33,11 @@ from place.config import FULFILLMENT_URL
 
 from custom_components import gentex_place as integration_module
 from custom_components.gentex_place import auth as auth_helpers
-from custom_components.gentex_place.const import DOMAIN
+from custom_components.gentex_place.const import DOMAIN, STALE_AFTER_SECONDS
 from tests.system.entity_contract import EXPECTED_ENTITY_KEYS
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Mapping
     from typing import Self
 
     from homeassistant.core import HomeAssistant
@@ -159,8 +160,18 @@ class _MqttTransport:
         assert payload == b""
         self.publishes.append(topic)
         if topic.endswith("/shadow/get"):
-            response = json.dumps({"state": {"reported": _INITIAL_REPORTED}}).encode()
-            await self._messages.put((f"{topic}/accepted", response))
+            thing_name = topic.removeprefix("$aws/things/").removesuffix("/shadow/get")
+            await self.deliver_reported_shadow(thing_name, _INITIAL_REPORTED)
+
+    async def deliver_reported_shadow(
+        self,
+        thing_name: str,
+        reported: Mapping[str, object],
+    ) -> None:
+        """Deliver one device shadow answer through the MQTT transport seam."""
+        response = json.dumps({"state": {"reported": reported}}).encode()
+        topic = f"$aws/things/{thing_name}/shadow/get/accepted"
+        await self._messages.put((topic, response))
 
     async def messages(self) -> AsyncIterator[tuple[str, bytes]]:
         """Stream deterministic MQTT messages until the real task is cancelled."""
@@ -317,6 +328,35 @@ async def test_packaged_config_flow_registry_and_unload(  # noqa: PLR0915
     assert all(item.disabled_by is None for item in entities)
     assert all(hass.states.get(item.entity_id) is not None for item in entities)
     _assert_imports_are_packaged()
+
+    temperature_entity = next(
+        item
+        for item in entities
+        if item.domain == "sensor"
+        and item.unique_id == f"{_ACCOUNT_ID}_{_THING_NAME}_{_escape('temperature_c')}"
+    )
+    runtime_device = runtime_client.devices[_THING_NAME]
+    runtime_device.last_shadow_at = time.monotonic() - STALE_AFTER_SECONDS - 1
+    entry.runtime_data.coordinator.async_set_updated_data(runtime_client.devices)
+    await hass.async_block_till_done()
+    stale_state = hass.states.get(temperature_entity.entity_id)
+    assert stale_state is not None
+    assert stale_state.state == STATE_UNAVAILABLE
+
+    await boundary.transports[0].deliver_reported_shadow(
+        _THING_NAME,
+        _INITIAL_REPORTED,
+    )
+    async with asyncio.timeout(5):
+        while True:
+            refreshed_state = hass.states.get(temperature_entity.entity_id)
+            if (
+                refreshed_state is not None
+                and refreshed_state.state != STATE_UNAVAILABLE
+            ):
+                break
+            await asyncio.sleep(0.01)
+    assert refreshed_state.state == "21.5"
 
     old_client = runtime_client
     assert await hass.config_entries.async_reload(entry.entry_id) is True

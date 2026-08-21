@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 _ROOT = Path(__file__).parents[3]
-_SDK_SHA = "7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"
+_SDK_SHA = "d92f07ecc9b7e66162d60d4a66cc07366543b631"
 _SDK_GIT_URL = "https://github.com/harperreed/place-integration-api.git"
 _SDK_REQUIREMENT = f"place-integration-api@git+{_SDK_GIT_URL}@{_SDK_SHA}"
 _WORKFLOW_JOB_COUNT = 3
@@ -98,6 +98,11 @@ def test_manifest_and_project_share_the_git_sdk_requirement() -> None:
     )
     assert sdk_dependencies == [_SDK_REQUIREMENT]
     assert "sources" not in project.get("tool", {}).get("uv", {})
+    for install_gate in (
+        _ROOT / "scripts/check_sdk_dependency",
+        _ROOT / "tests/system/run.sh",
+    ):
+        assert install_gate.read_text().count(_SDK_REQUIREMENT) == 1
 
 
 def test_lock_uses_the_approved_public_sdk_commit() -> None:

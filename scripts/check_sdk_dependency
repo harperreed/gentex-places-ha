@@ -3,7 +3,7 @@
 # ABOUTME: Uses temporary environments outside both source checkouts.
 set -eu
 
-sdk_requirement='place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad'
+sdk_requirement='place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631'
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repository_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 contract_checker="$script_dir/check_sdk_contract.py"

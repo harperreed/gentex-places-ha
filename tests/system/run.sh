@@ -41,7 +41,7 @@ uv pip install --python "$venv_root/bin/python" \
     "homeassistant==2026.8.1" \
     "pytest==9.0.3" \
     "pytest-homeassistant-custom-component==0.13.355" \
-    "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad" \
+    "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631" \
     >>"$log_file" 2>&1 || fail "$?"
 (
     unset PYTHONHOME PYTHONPATH

@@ -8,7 +8,7 @@
 
 **Architecture:** One typed `GentexPlaceCoordinator` owns one async SDK client per config entry. The SDK's mutable device registry is the single source of truth; MQTT callbacks and a fixed health timer notify `CoordinatorEntity` views. Config flows store only username, refresh token, and stable account identity.
 
-**Tech Stack:** Python 3.14.2, Home Assistant 2026.8.1, `place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`, asyncio/aiohttp, pytest-homeassistant-custom-component 0.13.355, pytest, Ruff, basedpyright, uv, Hassfest, HACS Action.
+**Tech Stack:** Python 3.14.2, Home Assistant 2026.8.1, `place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631`, asyncio/aiohttp, pytest-homeassistant-custom-component 0.13.355, pytest, Ruff, basedpyright, uv, Hassfest, HACS Action.
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
   that minimum and a scheduled latest-stable resolver, but does not promise unknown
   future releases before they are tested.
 - The manifest and development dependency always use
-  `place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`.
+  `place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631`.
   `uv.lock` resolves that public HTTPS Git source at the same full SHA with no sibling
   directory source.
 - Task 9 may begin after `2026-08-19-git-sdk-dependency.md` is complete. Do not fake
@@ -72,7 +72,7 @@ approved public SDK commit and required imports are verified.
 
 **State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality
 reviews approved. Development now uses the immutable public Git SDK requirement
-`place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`.
+`place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631`.
 
 **Files:**
 - Create: `pyproject.toml`
@@ -107,7 +107,7 @@ dependencies = []
 dev = [
   "basedpyright==1.39.9",
   "pip-audit==2.10.1",
-  "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad",
+  "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631",
   "pytest-cov==7.1.0",
   "pytest-homeassistant-custom-component==0.13.355",
   "ruff==0.16.2",
@@ -157,7 +157,7 @@ uv lock
 
 Expected: dependency resolution succeeds on Python 3.14 and the lock resolves the
 public HTTPS Git dependency to full commit
-`7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` with SDK version `0.3.0`.
+`d92f07ecc9b7e66162d60d4a66cc07366543b631` with SDK version `0.3.0`.
 
 - [x] **Step 2: Write failing token-cache tests**
 
@@ -941,7 +941,7 @@ licensed brand art, and live-account gates remain open and unclaimed.
 
 Run `scripts/check_sdk_dependency` and the focused manifest tests. Inspect
 `manifest.json`, `pyproject.toml`, and `uv.lock` to confirm they resolve the public
-SDK at `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` with no directory source. Stop if
+SDK at `d92f07ecc9b7e66162d60d4a66cc07366543b631` with no directory source. Stop if
 the clean install or public API import contract differs from the approved dependency
 design.
 
@@ -952,7 +952,7 @@ Create tests that load JSON and assert:
 ```python
 assert manifest["domain"] == "gentex_place"
 assert manifest["version"] == project["project"]["version"]
-assert manifest["requirements"] == ["place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"]
+assert manifest["requirements"] == ["place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631"]
 assert manifest["config_flow"] is True
 assert manifest["iot_class"] == "cloud_push"
 assert hacs["homeassistant"] == "2026.8.1"
@@ -1133,7 +1133,9 @@ Evidence includes the isolated Home Assistant 2026.8.1 runner, warning-fatal
 canonical checks, exact read-only workflow contract, and behavioral archive test.
 The `d476205` audit follow-up replaces whole-SDK test doubles with network-seam
 injection, covers real config-entry reload, and includes the full MIT notice in the
-artifact. External gates in Step 8 remain open.
+artifact. SDK commit `d92f07e` fixes value-identical shadow-reply liveness updates;
+the packaged scenario covers the stale-to-available Home Assistant transition.
+External gates in Step 8 remain open.
 
 **Files:**
 - Create: `tests/system/run.sh`
@@ -1153,7 +1155,7 @@ artifact. External gates in Step 8 remain open.
 
 The system test copies only `custom_components/gentex_place` into an isolated
 temporary package tree, installs
-`place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`,
+`place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631`,
 starts the pinned Home Assistant 2026.8.1 pytest runtime, and drives the real config
 flow through Home Assistant's flow manager. Deterministic behavior enters only at
 the SDK Cognito gateway, discovery HTTP transport, and MQTT transport seams. The
@@ -1162,6 +1164,12 @@ device and enabled entities, a real Home Assistant reload with a second roster, 
 transport shutdown, new device/entity creation, and clean unload. It does not patch
 integration factories, SDK entity models, Home Assistant internals, entity
 properties, or registry calls.
+
+The liveness regression makes the loaded device stale, confirms its temperature
+entity becomes unavailable, delivers a value-identical reported shadow through the
+real SDK transport and client dispatch, then requires the loaded Home Assistant
+entity to return to `21.5`. It timed out against SDK `7f9f6bb` and passed against
+public SDK `d92f07e`.
 
 Put the expected entity keys in one constant imported by both the system assertion and unit description-completeness test.
 

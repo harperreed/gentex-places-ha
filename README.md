@@ -193,7 +193,7 @@ scripts/check
 `scripts/check` runs formatting, lint, type checking, the complete test suite,
 manifest validation, and dependency/security checks. The PLACE SDK dependency is
 installed from the immutable public Git commit
-`7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`. That immutable Git source lets HACS
+`d92f07ecc9b7e66162d60d4a66cc07366543b631`. That immutable Git source lets HACS
 install the dependency. Publishing the SDK to PyPI remains a future Home Assistant
 Core concern, not a requirement for this HACS custom integration.
 

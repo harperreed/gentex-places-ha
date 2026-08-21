@@ -50,9 +50,12 @@
   ordinal stays stable. Concurrent flows can choose the same cosmetic title, but the
   account unique ID remains the duplicate-account authority.
 - HACS installs the forked PLACE SDK from public Git commit
-  `7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`; keep the manifest, pyproject, and
+  `d92f07ecc9b7e66162d60d4a66cc07366543b631`; keep the manifest, pyproject, and
   lock on that full SHA with no sibling uv source. PyPI remains required only for a
   future Home Assistant Core submission.
+- SDK client updates include value-identical reported-shadow replies because they
+  advance liveness; device-local listeners remain field-change only. Empty MQTT
+  echoes neither stamp liveness nor emit an update.
 - Task 9 local validation includes the `place` logger and a fail-closed exception for
   the three approved cryptography findings. HACS default inclusion remains blocked on
   licensed brand art with provenance; remote HACS/Hassfest, clean-install, and release
