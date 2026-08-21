@@ -45,7 +45,7 @@ uv pip install --python "$venv_root/bin/python" \
     >>"$log_file" 2>&1 || fail "$?"
 (
     unset PYTHONHOME PYTHONPATH
-    cd "$package_root"
+    cd "$package_root" || exit "$?"
     GENTEX_PLACE_PACKAGED_TEST=1 \
     GENTEX_PLACE_SOURCE_CHECKOUT="$source_root" \
         "$venv_root/bin/python" -m pytest \

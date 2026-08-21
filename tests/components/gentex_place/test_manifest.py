@@ -6,11 +6,12 @@
 from __future__ import annotations
 
 import json
-import re
 import stat
 import tomllib
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 _ROOT = Path(__file__).parents[3]
 _SDK_SHA = "7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"
@@ -19,8 +20,48 @@ _SDK_REQUIREMENT = f"place-integration-api@git+{_SDK_GIT_URL}@{_SDK_SHA}"
 _WORKFLOW_JOB_COUNT = 3
 _DEPENDABOT_UPDATE_COUNT = 2
 _CHECKOUT_ACTION = "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+_SETUP_UV_SHA = "ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d"
 _UPLOAD_ARTIFACT_ACTION = (
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+)
+_EXPECTED_RELEASE_WORKFLOW = (
+    "name: Build release candidate\n"
+    "\n"
+    "on:\n"
+    "  workflow_dispatch:\n"
+    "    inputs:\n"
+    "      version:\n"
+    "        description: Version matching pyproject.toml and the integration "
+    "manifest\n"
+    "        required: true\n"
+    "        type: string\n"
+    "\n"
+    "permissions:\n"
+    "  contents: read\n"
+    "\n"
+    "jobs:\n"
+    "  artifact:\n"
+    "    runs-on: ubuntu-latest\n"
+    "    steps:\n"
+    f"      - uses: {_CHECKOUT_ACTION}\n"
+    "        with:\n"
+    "          persist-credentials: false\n"
+    f"      - uses: astral-sh/setup-uv@{_SETUP_UV_SHA}\n"
+    "      - run: uv python install 3.14.2\n"
+    "      - run: scripts/check\n"
+    "      - name: Check release version\n"
+    "        env:\n"
+    "          RELEASE_VERSION: ${{ inputs.version }}\n"
+    '        run: uv run python scripts/check_release.py "$RELEASE_VERSION"\n'
+    "      - name: Build integration archive\n"
+    "        run: >-\n"
+    "          git archive --format=zip --prefix=gentex_place/\n"
+    "          --output=gentex_place.zip HEAD:custom_components/gentex_place\n"
+    f"      - uses: {_UPLOAD_ARTIFACT_ACTION}\n"
+    "        with:\n"
+    "          name: gentex_place-${{ inputs.version }}\n"
+    "          path: gentex_place.zip\n"
+    "          if-no-files-found: error\n"
 )
 
 
@@ -116,36 +157,52 @@ def test_validation_workflow_uses_pinned_official_actions() -> None:
     assert "category: integration" in workflow
 
 
+def _assert_release_workflow_contract(workflow: str) -> None:
+    """Require the complete release workflow instead of a permissive denylist."""
+    assert workflow == _EXPECTED_RELEASE_WORKFLOW
+
+
 def test_release_workflow_builds_only_a_read_only_manual_artifact() -> None:
     workflow = (_ROOT / ".github/workflows/release.yml").read_text()
-    action_refs = re.findall(r"uses: [^@\s]+@([^\s]+)", workflow)
 
-    assert workflow.startswith(
-        "name: Build release candidate\n\non:\n  workflow_dispatch:"
-    )
-    assert "version:\n        description:" in workflow
-    assert "required: true" in workflow
-    assert "permissions:\n  contents: read" in workflow
-    assert (
-        f"uses: {_CHECKOUT_ACTION}\n        with:\n          persist-credentials: false"
-    ) in workflow
-    assert _UPLOAD_ARTIFACT_ACTION in workflow
-    assert action_refs
-    assert all(re.fullmatch(r"[0-9a-f]{40}", reference) for reference in action_refs)
-    assert "run: scripts/check" in workflow
-    assert 'uv run python scripts/check_release.py "$RELEASE_VERSION"' in workflow
-    assert "git archive --format=zip --prefix=gentex_place/" in workflow
-    assert "--output=gentex_place.zip HEAD:custom_components/gentex_place" in workflow
-    assert "name: gentex_place-${{ inputs.version }}" in workflow
-    assert "path: gentex_place.zip" in workflow
-    for publication in (
-        "contents: write",
-        "git push",
-        "git tag",
-        "gh release",
-        "action-gh-release",
-    ):
-        assert publication not in workflow
+    _assert_release_workflow_contract(workflow)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "unsafe_replacement"),
+    [
+        ("\npermissions:\n", "\n  push:\n\npermissions:\n"),
+        (
+            "permissions:\n  contents: read",
+            "permissions:\n  contents: read\n  issues: write",
+        ),
+        (
+            f"      - uses: {_UPLOAD_ARTIFACT_ACTION}",
+            (
+                "      - uses: untrusted/example@"
+                "0000000000000000000000000000000000000000\n"
+                f"      - uses: {_UPLOAD_ARTIFACT_ACTION}"
+            ),
+        ),
+        (
+            "      - name: Check release version",
+            (
+                "      - run: curl https://example.invalid/publish\n"
+                "      - name: Check release version"
+            ),
+        ),
+    ],
+)
+def test_release_workflow_contract_rejects_extra_capabilities(
+    anchor: str,
+    unsafe_replacement: str,
+) -> None:
+    workflow = (_ROOT / ".github/workflows/release.yml").read_text()
+    unsafe_workflow = workflow.replace(anchor, unsafe_replacement, 1)
+    assert unsafe_workflow != workflow
+
+    with pytest.raises(AssertionError):
+        _assert_release_workflow_contract(unsafe_workflow)
 
 
 def test_dependabot_tracks_locked_python_and_action_dependencies() -> None:
