@@ -13,7 +13,14 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from place import PlaceClient, PlaceDevice, PlaceDeviceShadow, PlaceInvalidAuthError
+import pytest
+from place import (
+    PlaceClient,
+    PlaceConnectionError,
+    PlaceDevice,
+    PlaceDeviceShadow,
+    PlaceInvalidAuthError,
+)
 
 from scripts.live_check import (
     _start_refresh_and_wait,
@@ -61,6 +68,21 @@ class DelayedConnectionClient:
         self.connected = True
 
 
+class ConnectionDroppingClient(DelayedConnectionClient):
+    """Drop the public connection after refresh supplies a reported shadow."""
+
+    async def start(self) -> None:
+        """Expose a connection before the refresh request."""
+        self.connected = True
+
+    async def async_refresh_shadow(self) -> None:
+        """Supply reported state, then lose the connection before returning."""
+        assert self.connected
+        self.refresh_calls += 1
+        self._devices["device"].last_shadow_at = 1.0
+        self.connected = False
+
+
 async def test_live_check_waits_for_connection_before_refresh() -> None:
     client = DelayedConnectionClient()
 
@@ -68,6 +90,15 @@ async def test_live_check_waits_for_connection_before_refresh() -> None:
 
     assert client.refresh_calls == 1
     assert client.devices["device"].last_shadow_at == 1.0
+
+
+async def test_live_check_rejects_shadow_when_connection_drops() -> None:
+    client = ConnectionDroppingClient()
+
+    with pytest.raises(PlaceConnectionError, match=r"^$"):
+        await _start_refresh_and_wait(cast("PlaceClient", client))
+
+    assert client.refresh_calls == 1
 
 
 def test_live_summary_has_counts_not_identifiers() -> None:

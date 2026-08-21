@@ -12,7 +12,7 @@ updates; it has no control entities, services, commands, or desired-state writes
 
 ## Installation
 
-Installation through HACS as a custom repository works:
+To install Gentex PLACE as a HACS custom repository:
 
 1. In HACS, open the three-dot menu and choose **Custom repositories**.
 2. Add `https://github.com/harperreed/gentex-places-ha` with the type
@@ -208,8 +208,8 @@ Git remains a release gate.
 
 ## Release status
 
-HACS custom-repository installation works. HACS default-store inclusion and a release
-candidate remain blocked on:
+The intended current distribution is a HACS custom repository. HACS default-store
+inclusion and a release candidate remain blocked on:
 
 - verified provenance and a suitable license for the Gentex brand icon;
 - passing remote HACS and Hassfest validation without ignored failures;

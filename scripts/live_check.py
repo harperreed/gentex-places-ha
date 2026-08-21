@@ -105,9 +105,11 @@ async def _wait_until_connected(client: PlaceClient) -> None:
 
 async def _wait_for_reported_shadow(client: PlaceClient) -> None:
     """Wait until one public device has received a reported shadow."""
-    while not any(  # noqa: ASYNC110 - SDK exposes public polling state
-        device.last_shadow_at is not None for device in client.devices.values()
-    ):
+    while True:
+        if not client.connected:
+            raise PlaceConnectionError
+        if any(device.last_shadow_at is not None for device in client.devices.values()):
+            return
         await asyncio.sleep(_READINESS_POLL_SECONDS)
 
 
@@ -144,7 +146,10 @@ async def async_live_check(username: str) -> dict[str, bool | int]:
             async with asyncio.timeout(_STARTUP_TIMEOUT_SECONDS):
                 start_attempted = True
                 await _start_refresh_and_wait(client)
-            return build_summary(client.devices, connected=client.connected)
+            connected = client.connected
+            if not connected:
+                raise PlaceConnectionError
+            return build_summary(client.devices, connected=connected)
         finally:
             if start_attempted:
                 stop_task = asyncio.create_task(client.stop())
