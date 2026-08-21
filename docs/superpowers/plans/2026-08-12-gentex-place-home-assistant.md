@@ -1042,6 +1042,13 @@ git commit -m "ci: validate Gentex PLACE integration"
 
 ### Task 10: User documentation and opt-in read-only live check
 
+**State:** Locally complete in commits `4f11052` and `864f843`. Spec and quality
+reviews approved after adding regressions for connect-before-refresh ordering,
+disconnect-before-success, and safe CLI errors. Local verification passes 399 tests
+at 100% production coverage with zero lint or type findings. The real-account live
+scenario, remote HACS/Hassfest, clean-system installation, and licensed-brand gates
+remain open and unclaimed.
+
 **Files:**
 - Modify: `README.md`
 - Create: `scripts/live_check.py`
@@ -1052,7 +1059,7 @@ git commit -m "ci: validate Gentex PLACE integration"
 - Consumes: released SDK public API and integration entity list.
 - Produces: user/install docs and an explicit live release check; no live automation in CI.
 
-- [ ] **Step 1: Test live-check guardrails**
+- [x] **Step 1: Test live-check guardrails**
 
 Extract `build_summary()` and `redact_exception()` as pure helpers, then test:
 
@@ -1074,13 +1081,13 @@ def test_live_check_source_contains_no_desired_write() -> None:
     assert "shadow/update" not in source
 ```
 
-- [ ] **Step 2: Run and confirm missing script**
+- [x] **Step 2: Run and confirm missing script**
 
 Run: `uv run pytest tests/components/gentex_place/test_live_check.py -q`
 
 Expected: FAIL because `scripts.live_check` is absent.
 
-- [ ] **Step 3: Implement the explicit script**
+- [x] **Step 3: Implement the explicit script**
 
 Use `argparse` with `--username`, prompt via `getpass`, handle `MfaRequired`, call `PlaceClient.create`, wait at most 30 seconds for connection/one shadow, call only `async_refresh_shadow`, print the allow-list summary, and exit nonzero on timeout/auth/discovery failure. Add this header:
 
@@ -1091,13 +1098,13 @@ Use `argparse` with `--username`, prompt via `getpass`, handle `MfaRequired`, ca
 
 The script must have no output-file argument and no dependency on environment-stored password/MFA values.
 
-- [ ] **Step 4: Write the complete README**
+- [x] **Step 4: Write the complete README**
 
 Cover: supported devices/fields; read-only status; HACS custom-repo install and default-store goal; UI setup and MFA; multiple accounts; entity table; fixed refresh/stale/motion timings; reauth; diagnostics/privacy; troubleshooting; removal; two example automations; developer setup; `scripts/check`; explicit live-check invocation; known SDK/release blockers; MIT license.
 
 Do not claim HACS default inclusion, live validation, or PyPI `0.3.0` until each is true.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run:
 
