@@ -57,3 +57,5 @@
   the three approved cryptography findings. HACS default inclusion remains blocked on
   licensed brand art with provenance; remote HACS/Hassfest, live-account, README, and
   release gates also remain open.
+- Root `.env` holds local live-check credentials. Keep it ignored and mode `0600`;
+  inspect key names only, never print values, and request MFA at runtime.

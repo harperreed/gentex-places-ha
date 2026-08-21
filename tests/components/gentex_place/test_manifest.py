@@ -120,3 +120,10 @@ def test_dependabot_tracks_locked_python_and_action_dependencies() -> None:
     assert dependabot.count('interval: "weekly"') == _DEPENDABOT_UPDATE_COUNT
     assert 'package-ecosystem: "uv"' in dependabot
     assert 'package-ecosystem: "github-actions"' in dependabot
+
+
+def test_local_environment_credentials_are_ignored() -> None:
+    """Keep local live-check credentials out of Git."""
+    ignored_paths = set((_ROOT / ".gitignore").read_text().splitlines())
+
+    assert ".env" in ignored_paths
