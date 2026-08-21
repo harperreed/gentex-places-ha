@@ -62,3 +62,6 @@
 - The authorized read-only live check passed on 2026-08-21 at `a11133a`: the account
   connected and all five discovered devices reported state. Keep sanitized evidence
   outside Git and rerun the check for every release candidate.
+- POSIX shells suppress `set -e` throughout a compound command used as the left side
+  of `||`. Release runners must check each logged setup phase explicitly so an early
+  failure cannot be masked by a later successful command.

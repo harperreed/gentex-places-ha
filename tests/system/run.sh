@@ -17,38 +17,45 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$package_root/custom_components" "$package_root/tests/system"
-cp -R "$source_root/custom_components/gentex_place" "$package_root/custom_components/"
-cp "$source_root/tests/system/entity_contract.py" "$package_root/tests/system/"
-cp "$source_root/tests/system/test_descriptions.py" "$package_root/tests/system/"
-cp "$source_root/tests/system/test_registry.py" "$package_root/tests/system/"
-
-(set -eu
-    uv venv --python 3.14.2 "$venv_root"
-    uv pip install --python "$venv_root/bin/python" \
-        "homeassistant==2026.8.1" \
-        "pytest==9.0.3" \
-        "pytest-homeassistant-custom-component==0.13.355" \
-        "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad"
-    (
-        unset PYTHONHOME PYTHONPATH
-        cd "$package_root"
-        GENTEX_PLACE_PACKAGED_TEST=1 \
-        GENTEX_PLACE_SOURCE_CHECKOUT="$source_root" \
-            "$venv_root/bin/python" -m pytest \
-                -p pytest_homeassistant_custom_component \
-                --asyncio-mode=auto \
-                -W error \
-                -q \
-                tests/system/test_descriptions.py \
-                tests/system/test_registry.py
-    )
-) >"$log_file" 2>&1 || {
-    status=$?
+fail() {
+    runner_status=$1
     printf 'Packaged system test failed; full log and temp state: %s\n' \
         "$log_file" >&2
-    exit "$status"
+    exit "$runner_status"
 }
+
+: >"$log_file"
+mkdir -p "$package_root/custom_components" "$package_root/tests/system" \
+    >>"$log_file" 2>&1 || fail "$?"
+cp -R "$source_root/custom_components/gentex_place" \
+    "$package_root/custom_components/" >>"$log_file" 2>&1 || fail "$?"
+cp "$source_root/tests/system/entity_contract.py" "$package_root/tests/system/" \
+    >>"$log_file" 2>&1 || fail "$?"
+cp "$source_root/tests/system/test_descriptions.py" "$package_root/tests/system/" \
+    >>"$log_file" 2>&1 || fail "$?"
+cp "$source_root/tests/system/test_registry.py" "$package_root/tests/system/" \
+    >>"$log_file" 2>&1 || fail "$?"
+
+uv venv --python 3.14.2 "$venv_root" >>"$log_file" 2>&1 || fail "$?"
+uv pip install --python "$venv_root/bin/python" \
+    "homeassistant==2026.8.1" \
+    "pytest==9.0.3" \
+    "pytest-homeassistant-custom-component==0.13.355" \
+    "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad" \
+    >>"$log_file" 2>&1 || fail "$?"
+(
+    unset PYTHONHOME PYTHONPATH
+    cd "$package_root"
+    GENTEX_PLACE_PACKAGED_TEST=1 \
+    GENTEX_PLACE_SOURCE_CHECKOUT="$source_root" \
+        "$venv_root/bin/python" -m pytest \
+            -p pytest_homeassistant_custom_component \
+            --asyncio-mode=auto \
+            -W error \
+            -q \
+            tests/system/test_descriptions.py \
+            tests/system/test_registry.py
+) >>"$log_file" 2>&1 || fail "$?"
 
 cat "$log_file"
 passed=1

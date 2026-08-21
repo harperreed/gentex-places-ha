@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import re
 import stat
 import tomllib
 from pathlib import Path
@@ -18,6 +19,9 @@ _SDK_REQUIREMENT = f"place-integration-api@git+{_SDK_GIT_URL}@{_SDK_SHA}"
 _WORKFLOW_JOB_COUNT = 3
 _DEPENDABOT_UPDATE_COUNT = 2
 _CHECKOUT_ACTION = "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+_UPLOAD_ARTIFACT_ACTION = (
+    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+)
 
 
 def _load_toml(path: Path) -> dict[str, Any]:
@@ -89,7 +93,7 @@ def test_canonical_check_runs_every_local_gate() -> None:
     assert "uv run ruff check custom_components tests scripts" in check
     assert "uv run basedpyright" in check
     assert (
-        "uv run pytest --cov=custom_components.gentex_place "
+        "uv run pytest -W error --cov=custom_components.gentex_place "
         "--cov-report=term-missing --cov-fail-under=100"
     ) in check
     assert "uv run python scripts/check_dependency_audit.py" in check
@@ -110,6 +114,38 @@ def test_validation_workflow_uses_pinned_official_actions() -> None:
     ) in workflow
     assert "hacs/action@d556e736723344f83838d08488c983a15381059a" in workflow
     assert "category: integration" in workflow
+
+
+def test_release_workflow_builds_only_a_read_only_manual_artifact() -> None:
+    workflow = (_ROOT / ".github/workflows/release.yml").read_text()
+    action_refs = re.findall(r"uses: [^@\s]+@([^\s]+)", workflow)
+
+    assert workflow.startswith(
+        "name: Build release candidate\n\non:\n  workflow_dispatch:"
+    )
+    assert "version:\n        description:" in workflow
+    assert "required: true" in workflow
+    assert "permissions:\n  contents: read" in workflow
+    assert (
+        f"uses: {_CHECKOUT_ACTION}\n        with:\n          persist-credentials: false"
+    ) in workflow
+    assert _UPLOAD_ARTIFACT_ACTION in workflow
+    assert action_refs
+    assert all(re.fullmatch(r"[0-9a-f]{40}", reference) for reference in action_refs)
+    assert "run: scripts/check" in workflow
+    assert 'uv run python scripts/check_release.py "$RELEASE_VERSION"' in workflow
+    assert "git archive --format=zip --prefix=gentex_place/" in workflow
+    assert "--output=gentex_place.zip HEAD:custom_components/gentex_place" in workflow
+    assert "name: gentex_place-${{ inputs.version }}" in workflow
+    assert "path: gentex_place.zip" in workflow
+    for publication in (
+        "contents: write",
+        "git push",
+        "git tag",
+        "gh release",
+        "action-gh-release",
+    ):
+        assert publication not in workflow
 
 
 def test_dependabot_tracks_locked_python_and_action_dependencies() -> None:
