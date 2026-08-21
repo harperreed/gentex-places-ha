@@ -1128,7 +1128,7 @@ git commit -m "docs: add PLACE setup and release checks"
 ### Task 11: Packaged Home Assistant scenario and release candidate
 
 **State:** Implemented in HA commits `15255be`, `3a37d75`, `a62754b`, and
-`d476205`.
+`d476205`, with the public SDK liveness repin in `3841438`.
 Evidence includes the isolated Home Assistant 2026.8.1 runner, warning-fatal
 canonical checks, exact read-only workflow contract, and behavioral archive test.
 The `d476205` audit follow-up replaces whole-SDK test doubles with network-seam
@@ -1234,6 +1234,10 @@ The original Task 11 change, two review hardening passes, and branch audit were
 committed as `15255be`, `3a37d75`, `a62754b`, and `d476205`. Each pass ran the
 isolated system scenario, warning-fatal `scripts/check`, shell syntax, actionlint,
 and fresh-eyes review.
+
+The SDK liveness follow-up is committed as `3841438`. Its TDD regression timed out
+against public SDK `7f9f6bb`, passed against `d92f07e`, and the full canonical plus
+direct/locked clean-install gates passed before commit.
 
 **Narrow remaining test debt:** focused lifecycle failure tests still patch Home
 Assistant's platform setup/unload methods to force cancellation and partial-failure
