@@ -202,9 +202,10 @@ uv run python scripts/live_check.py --username 'you@example.com'
 ```
 
 It exits nonzero on authentication, discovery, connection, or 30-second readiness
-failure and closes its HTTP session and PLACE client on every exit path. This check
-has not yet been run against a real PLACE account. An authorized passing run outside
-Git remains a release gate.
+failure and closes its HTTP session and PLACE client on every exit path. An authorized
+run passed on 2026-08-21 against commit `a11133a`: the account connected and every
+discovered device produced reported state while the script printed aggregate counts
+only. Repeat this check for each release candidate.
 
 ## Release status
 
@@ -213,10 +214,11 @@ inclusion and a release candidate remain blocked on:
 
 - verified provenance and a suitable license for the Gentex brand icon;
 - passing remote HACS and Hassfest validation without ignored failures;
-- installation into a clean current-stable Home Assistant system;
-- an authorized read-only live check against a real PLACE account.
+- installation into a clean current-stable Home Assistant system.
 
-The last gate is still unrun. Do not treat the unit suite as live service validation.
+The authorized read-only live check passed on 2026-08-21. That result validates the
+current script and PLACE service path; it does not replace the remaining remote and
+clean-install gates.
 
 ## License
 

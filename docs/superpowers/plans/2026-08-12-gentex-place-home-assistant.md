@@ -1044,10 +1044,11 @@ git commit -m "ci: validate Gentex PLACE integration"
 
 **State:** Locally complete in commits `4f11052` and `864f843`. Spec and quality
 reviews approved after adding regressions for connect-before-refresh ordering,
-disconnect-before-success, and safe CLI errors. Local verification passes 399 tests
-at 100% production coverage with zero lint or type findings. The real-account live
-scenario, remote HACS/Hassfest, clean-system installation, and licensed-brand gates
-remain open and unclaimed.
+disconnect-before-success, and safe CLI errors. Local verification passes 400 tests
+at 100% production coverage with zero lint or type findings. The authorized
+real-account live scenario passed on 2026-08-21 against commit `a11133a`, with
+sanitized evidence kept outside Git. Remote HACS/Hassfest, clean-system installation,
+and licensed-brand gates remain open and unclaimed.
 
 **Files:**
 - Modify: `README.md`

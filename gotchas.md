@@ -55,7 +55,10 @@
   future Home Assistant Core submission.
 - Task 9 local validation includes the `place` logger and a fail-closed exception for
   the three approved cryptography findings. HACS default inclusion remains blocked on
-  licensed brand art with provenance; remote HACS/Hassfest, live-account, README, and
-  release gates also remain open.
+  licensed brand art with provenance; remote HACS/Hassfest, clean-install, and release
+  gates also remain open.
 - Root `.env` holds local live-check credentials. Keep it ignored and mode `0600`;
   inspect key names only, never print values, and request MFA at runtime.
+- The authorized read-only live check passed on 2026-08-21 at `a11133a`: the account
+  connected and all five discovered devices reported state. Keep sanitized evidence
+  outside Git and rerun the check for every release candidate.
