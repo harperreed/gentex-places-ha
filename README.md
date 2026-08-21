@@ -157,6 +157,12 @@ Check the account and device connection entities first. A device that has not se
 reported shadow within 15 minutes is unavailable. A field can also be unavailable
 because that device model does not report it.
 
+**A newly added PLACE device does not appear**
+
+After adding a device to the PLACE account, reload the Gentex PLACE config entry from
+**Settings > Devices & services** so the integration runs discovery again. If that
+reload control is unavailable, restart Home Assistant.
+
 **Home Assistant asks for reauthentication**
 
 Complete the reauthentication flow with the same PLACE account. A different account

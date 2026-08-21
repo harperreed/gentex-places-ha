@@ -6,14 +6,17 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+import re
+import shlex
+import subprocess
+import zipfile
+from pathlib import Path
 
 import pytest
 
 from scripts.check_release import check_release_version
 
-if TYPE_CHECKING:
-    from pathlib import Path
+_ROOT = Path(__file__).parents[1]
 
 
 def _write_metadata(
@@ -57,3 +60,38 @@ def test_check_release_version_names_requested_project_mismatch(
 
     with pytest.raises(ValueError, match=r"requested.*project"):
         check_release_version("0.2.0", pyproject, manifest)
+
+
+def test_workflow_archive_contains_integration_and_full_license() -> None:
+    workflow = (_ROOT / ".github/workflows/release.yml").read_text()
+    archive_block = re.search(
+        r"      - name: Build integration archive\n"
+        r"        run: >-\n"
+        r"(?P<command>(?:          .+\n)+)",
+        workflow,
+    )
+    assert archive_block is not None
+    command = " ".join(
+        line.strip() for line in archive_block.group("command").splitlines()
+    )
+    archive_path = _ROOT / "gentex_place.zip"
+    assert not archive_path.exists()
+    try:
+        subprocess.run(  # noqa: S603 - exact checked repository workflow command
+            shlex.split(command),
+            cwd=_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        with zipfile.ZipFile(archive_path) as archive:
+            names = set(archive.namelist())
+            assert names
+            assert all(name.startswith("gentex_place/") for name in names)
+            assert "gentex_place/manifest.json" in names
+            assert "gentex_place/LICENSE" in names
+            assert (
+                archive.read("gentex_place/LICENSE") == (_ROOT / "LICENSE").read_bytes()
+            )
+    finally:
+        archive_path.unlink(missing_ok=True)

@@ -65,3 +65,9 @@
 - POSIX shells suppress `set -e` throughout a compound command used as the left side
   of `||`. Release runners must check each logged setup phase explicitly so an early
   failure cannot be masked by a later successful command.
+- Packaged system tests keep the real integration factories and pinned SDK client,
+  auth, provider, connection, and device paths. Inject only at Cognito, fulfillment
+  HTTP, and MQTT transport seams; prove cleanup through public state and seam events,
+  never SDK private fields.
+- `git archive --prefix=gentex_place/ --add-file=LICENSE` puts the root MIT notice at
+  `gentex_place/LICENSE`, preserving one source of truth and the single-directory ZIP.

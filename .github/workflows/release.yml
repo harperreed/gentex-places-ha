@@ -28,7 +28,8 @@ jobs:
       - name: Build integration archive
         run: >-
           git archive --format=zip --prefix=gentex_place/
-          --output=gentex_place.zip HEAD:custom_components/gentex_place
+          --add-file=LICENSE --output=gentex_place.zip
+          HEAD:custom_components/gentex_place
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: gentex_place-${{ inputs.version }}

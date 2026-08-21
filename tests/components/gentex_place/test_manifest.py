@@ -56,7 +56,8 @@ _EXPECTED_RELEASE_WORKFLOW = (
     "      - name: Build integration archive\n"
     "        run: >-\n"
     "          git archive --format=zip --prefix=gentex_place/\n"
-    "          --output=gentex_place.zip HEAD:custom_components/gentex_place\n"
+    "          --add-file=LICENSE --output=gentex_place.zip\n"
+    "          HEAD:custom_components/gentex_place\n"
     f"      - uses: {_UPLOAD_ARTIFACT_ACTION}\n"
     "        with:\n"
     "          name: gentex_place-${{ inputs.version }}\n"
@@ -220,3 +221,27 @@ def test_local_environment_credentials_are_ignored() -> None:
     ignored_paths = set((_ROOT / ".gitignore").read_text().splitlines())
 
     assert ".env" in ignored_paths
+
+
+def test_readme_explains_how_to_discover_new_devices() -> None:
+    readme = (_ROOT / "README.md").read_text()
+
+    assert "reload the Gentex PLACE config entry" in readme
+    assert "restart Home Assistant" in readme
+
+
+def test_plan_records_current_task_1_and_task_11_state() -> None:
+    plan = (
+        _ROOT / "docs/superpowers/plans/2026-08-12-gentex-place-home-assistant.md"
+    ).read_text()
+    task_1 = plan.split("### Task 1:", 1)[1].split("### Task 2:", 1)[0]
+    task_11 = plan.split("### Task 11:", 1)[1]
+
+    assert "local SDK" not in task_1
+    assert _SDK_REQUIREMENT in task_1
+    assert "released SDK wheel" not in task_11
+    assert _SDK_REQUIREMENT in task_11
+    for step in range(1, 8):
+        assert f"- [x] **Step {step}:" in task_11
+    assert "- [ ] **Step 8: Stop at external gates**" in task_11
+    assert "remaining test debt" in task_11

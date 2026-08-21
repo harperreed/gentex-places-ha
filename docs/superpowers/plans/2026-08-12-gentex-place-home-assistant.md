@@ -70,7 +70,9 @@ approved public SDK commit and required imports are verified.
 
 ### Task 1: Reproducible project and token store
 
-**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality reviews approved. Development uses local SDK `7f9f6bb`.
+**State:** Complete in HA commits `7a197cd` and `c3e3c6e`; spec and quality
+reviews approved. Development now uses the immutable public Git SDK requirement
+`place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`.
 
 **Files:**
 - Create: `pyproject.toml`
@@ -105,7 +107,7 @@ dependencies = []
 dev = [
   "basedpyright==1.39.9",
   "pip-audit==2.10.1",
-  "place-integration-api==0.3.0",
+  "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad",
   "pytest-cov==7.1.0",
   "pytest-homeassistant-custom-component==0.13.355",
   "ruff==0.16.2",
@@ -129,8 +131,6 @@ pythonVersion = "3.14"
 typeCheckingMode = "standard"
 include = ["custom_components/gentex_place", "tests"]
 
-[tool.uv.sources]
-place-integration-api = { path = "../place-integration-api", editable = false }
 ```
 
 Create `tests/conftest.py`:
@@ -155,8 +155,9 @@ uv sync
 uv lock
 ```
 
-Expected: dependency resolution succeeds on Python 3.14 and the locked non-editable
-local SDK reports version `0.3.0`.
+Expected: dependency resolution succeeds on Python 3.14 and the lock resolves the
+public HTTPS Git dependency to full commit
+`7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad` with SDK version `0.3.0`.
 
 - [x] **Step 2: Write failing token-cache tests**
 
@@ -1126,6 +1127,13 @@ git commit -m "docs: add PLACE setup and release checks"
 
 ### Task 11: Packaged Home Assistant scenario and release candidate
 
+**State:** Implemented in HA commits `15255be`, `3a37d75`, and `a62754b`.
+Evidence includes the isolated Home Assistant 2026.8.1 runner, warning-fatal
+canonical checks, exact read-only workflow contract, and behavioral archive test.
+The current audit follow-up replaces whole-SDK test doubles with network-seam
+injection, covers real config-entry reload, and includes the full MIT notice in the
+artifact. External gates in Step 8 remain open.
+
 **Files:**
 - Create: `tests/system/run.sh`
 - Create: `tests/system/test_registry.py`
@@ -1135,34 +1143,63 @@ git commit -m "docs: add PLACE setup and release checks"
 - Modify: `scripts/check`
 
 **Interfaces:**
-- Consumes: packaged `custom_components/gentex_place`, sanitized fake SDK harness, pinned Home Assistant test runtime.
+- Consumes: packaged `custom_components/gentex_place`, immutable public Git SDK
+  commit, deterministic Cognito/HTTP/MQTT network seams, pinned Home Assistant test
+  runtime.
 - Produces: clean-install proof and release artifact workflow; no release publication without approval.
 
-- [ ] **Step 1: Add a failing packaged registry scenario**
+- [x] **Step 1: Add a failing packaged registry scenario**
 
-The system test must copy only `custom_components/gentex_place` into an isolated temporary package tree, install the released SDK wheel, start the pinned Home Assistant 2026.8.1 pytest runtime, drive the real config flow through Home Assistant's flow manager with the deterministic SDK fake injected at the network boundary, then assert one config entry, one device, all expected enabled entities, and clean unload. It must not import integration code from the source checkout or patch entity properties or registry calls.
+The system test copies only `custom_components/gentex_place` into an isolated
+temporary package tree, installs
+`place-integration-api@git+https://github.com/harperreed/place-integration-api.git@7f9f6bb6e4f5aeaae99cae30aa40a1bb3b5005ad`,
+starts the pinned Home Assistant 2026.8.1 pytest runtime, and drives the real config
+flow through Home Assistant's flow manager. Deterministic behavior enters only at
+the SDK Cognito gateway, discovery HTTP transport, and MQTT transport seams. The
+scenario asserts real public SDK client/device types, one config entry, the initial
+device and enabled entities, a real Home Assistant reload with a second roster, old
+transport shutdown, new device/entity creation, and clean unload. It does not patch
+integration factories, SDK entity models, Home Assistant internals, entity
+properties, or registry calls.
 
 Put the expected entity keys in one constant imported by both the system assertion and unit description-completeness test.
 
-- [ ] **Step 2: Run and confirm the unpackaged assumption fails**
+- [x] **Step 2: Run and confirm the unpackaged assumption fails**
 
 Run: `tests/system/run.sh`
 
 Expected: FAIL before the harness/config exists or before the component is copied.
 
-- [ ] **Step 3: Implement an isolated system runner**
+- [x] **Step 3: Implement an isolated system runner**
 
-`run.sh` creates temp directories with `mktemp -d`, copies the integration and system test into them, installs the pinned Home Assistant test environment plus the released SDK, traps cleanup, and preserves full logs on failure at a printed temp path. It must clear the source checkout from Python's import path and never use the operator's real Home Assistant config or credentials. Add it to `scripts/check` after unit tests.
+`run.sh` creates temp directories with `mktemp -d`, copies the integration and system
+test into them, installs the pinned Home Assistant test environment plus the
+immutable public Git SDK commit, traps cleanup, and preserves full logs on failure
+at a printed temp path. It must clear the source checkout from Python's import path
+and never use the operator's real Home Assistant config or credentials. Add it to
+`scripts/check` after unit tests.
 
-- [ ] **Step 4: Add a failing release-version test**
+The implemented runner installs the immutable public Git SDK commit rather than a
+wheel. It checks every logged setup phase and the packaged working-directory change
+explicitly so POSIX `set -e` suppression cannot mask an early failure.
+
+- [x] **Step 4: Add a failing release-version test**
 
 Test a public `check_release_version(requested: str, pyproject: Path, manifest: Path) -> str` helper. It returns the shared version when the workflow input, `[project].version`, and manifest `version` match. It raises a clear `ValueError` naming the mismatched sources when any differ. Cover `0.1.0` success, project/manifest mismatch, and requested/project mismatch.
 
-- [ ] **Step 5: Implement the checked release-artifact workflow**
+- [x] **Step 5: Implement the checked release-artifact workflow**
 
-Implement the helper with `argparse`, `json`, and `tomllib`. The workflow triggers on `workflow_dispatch` with a required `version` input, runs `scripts/check`, validates that input with `scripts/check_release.py`, builds `gentex_place.zip` containing only the integration directory, uploads `gentex_place-<version>` as a workflow artifact, and stops. Publishing a GitHub Release and creating a Git tag remain separate authorized actions.
+Implement the helper with `argparse`, `json`, and `tomllib`. The workflow triggers
+only on `workflow_dispatch` with a required string `version` input, has exact
+read-only permissions, runs `scripts/check`, validates that input with
+`scripts/check_release.py`, and builds `gentex_place.zip`. The ZIP has one
+`gentex_place/` directory containing the integration plus the repository's full MIT
+`LICENSE`; a behavioral test runs the exact archive command and checks entry names
+and notice bytes. The workflow uploads `gentex_place-<version>` as an artifact and
+stops. Publishing a GitHub Release and creating a Git tag remain separate authorized
+actions.
 
-- [ ] **Step 6: Run final verification**
+- [x] **Step 6: Run final verification**
 
 Run:
 
@@ -1175,7 +1212,7 @@ git log --oneline --decorate --max-count=12
 
 Expected: all checks PASS, no pending asyncio tasks or warnings, and only planned release files remain uncommitted.
 
-- [ ] **Step 7: Fresh-eyes review and commit**
+- [x] **Step 7: Fresh-eyes review and commit**
 
 Run the mandatory fresh-eyes review, fix every finding through TDD, rerun all commands above, then:
 
@@ -1184,14 +1221,25 @@ git add tests/system scripts/check_release.py tests/test_release.py .github/work
 git commit -m "test: verify packaged PLACE integration"
 ```
 
+The original Task 11 change and two review hardening passes were committed as
+`15255be`, `3a37d75`, and `a62754b`. Each pass ran the isolated system scenario,
+warning-fatal `scripts/check`, shell syntax, actionlint, and fresh-eyes review.
+
+**Narrow remaining test debt:** focused lifecycle failure tests still patch Home
+Assistant's platform setup/unload methods to force cancellation and partial-failure
+branches. No simple real-HA injection path exists for those failures without a
+large platform scaffold. Keep those useful tests and this explicit exception. The
+packaged happy path, reload, registries, and unload use Home Assistant's real flow,
+config-entry, platform, device, entity, and state machinery.
+
 - [ ] **Step 8: Stop at external gates**
 
 Do not push, publish, submit to the HACS default list, or create releases without Doctor Biz's approval. Report:
 
 - integration candidate commit and `scripts/check` output;
-- published SDK artifact verification status;
+- immutable public Git SDK commit verification status;
 - opt-in live-check status;
-- local brand asset/license status;
+- artifact license-notice status and separate local brand asset/provenance status;
 - GitHub repository metadata status; and
 - any warnings or unsupported device fields.
 
