@@ -56,10 +56,10 @@
 - SDK client updates include value-identical reported-shadow replies because they
   advance liveness; device-local listeners remain field-change only. Empty MQTT
   echoes neither stamp liveness nor emit an update.
-- Task 9 local validation includes the `place` logger and a fail-closed exception for
-  the three approved cryptography findings. HACS default inclusion remains blocked on
-  licensed brand art with provenance; remote HACS/Hassfest, clean-install, and release
-  gates also remain open.
+- Task 9 validation includes the `place` logger and a fail-closed exception for the
+  three approved cryptography findings. On 2026-08-22, public CI and Hassfest passed;
+  HACS passed 8/9 checks and remains blocked only on licensed brand art with
+  provenance. A clean user HACS install, live-candidate check, and release remain open.
 - Root `.env` holds local live-check credentials. Keep it ignored and mode `0600`;
   inspect key names only, never print values, and request MFA at runtime.
 - The authorized read-only live check passed on 2026-08-21 at `a11133a`: the account

@@ -1258,3 +1258,10 @@ Do not push, publish, submit to the HACS default list, or create releases withou
 - any warnings or unsupported device fields.
 
 Only after those gates pass should release version `1.0.0` replace the development version and the manifest/tag/notes change together.
+
+**2026-08-22 public status:** Doctor Biz authorized creating and pushing
+`https://github.com/harperreed/gentex-places-ha`. Public `main` initially resolved to
+`0433d5a`; local and GitHub canonical checks plus Hassfest passed. Repository topics
+were added after the first HACS run, and the rerun passed 8/9 checks. The sole HACS
+failure is the known missing `custom_components/gentex_place/brand/icon.png`; do not
+add an unlicensed logo to clear it. No tag or release exists.
