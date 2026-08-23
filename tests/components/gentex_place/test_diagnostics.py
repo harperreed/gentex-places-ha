@@ -251,7 +251,7 @@ async def test_diagnostics_are_fresh_exact_allow_list_without_private_canaries(
             "timing",
             "last_error",
         }
-        assert diagnostics["integration_version"] == "1.0.0"
+        assert diagnostics["integration_version"] == "1.0.1"
         assert diagnostics["home_assistant_version"] == ha_const.__version__
         assert diagnostics["sdk_version"] == place.__version__ == "0.3.0"
         assert diagnostics["connected"] is True

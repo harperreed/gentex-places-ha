@@ -19,7 +19,7 @@ To install Gentex PLACE as a HACS custom repository:
    **Integration**.
 3. On the **Gentex PLACE** entry, open the three-dot menu and choose
    **Download**.
-4. Under **Need a different version?**, select `v1.0.0`, then choose
+4. Under **Need a different version?**, select `v1.0.1`, then choose
    **Download**.
 5. Restart Home Assistant.
 
@@ -29,7 +29,7 @@ default store.
 
 ## Upgrade
 
-To upgrade the custom repository to `v1.0.0`:
+To upgrade the custom repository to `v1.0.1`:
 
 1. Go to **Settings > System > Backups**. In the lower-right corner, choose
    **Backup now**, then **Manual backup**.
@@ -41,7 +41,7 @@ To upgrade the custom repository to `v1.0.0`:
    choose **Download backup**. Keep that copy on another device.
 5. In HACS, find **Gentex PLACE**. On its entry, open the three-dot menu and choose
    **Redownload**.
-6. Under **Need a different version?**, select `v1.0.0`, then choose
+6. Under **Need a different version?**, select `v1.0.1`, then choose
    **Download**.
 7. Restart Home Assistant.
 8. Confirm that the integration loads and its account and device entities update.
@@ -66,7 +66,8 @@ select. If the upgrade fails, do not delete the integration or its config entry:
 
 The off-device **Download backup** copy remains available for wider Home Assistant
 recovery. For releases after `v1.0.0`, HACS **Redownload** can select an earlier
-published version under **Need a different version?** when HACS offers it.
+published version under **Need a different version?**. If `v1.0.1` fails, select
+`v1.0.0` and restart Home Assistant.
 
 A broken release stays unchanged. Its fix ships as a higher patch version; the
 project does not move a published tag or replace its ZIP asset.
