@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import os
+import stat
 import subprocess
 import sys
 import zipfile
@@ -28,6 +30,9 @@ _ZIP_SYSTEM = 3
 
 BuildRelease = Callable[[Path, Path], Path]
 VerifyRelease = Callable[[Path, Path], None]
+TrackedReleasePaths = Callable[[Path], list[tuple[str, Path]]]
+OpenRoot = Callable[[Path], int]
+ReadSource = Callable[[int, str, Path], bytes]
 
 
 def _release_functions() -> tuple[BuildRelease, VerifyRelease]:
@@ -59,8 +64,9 @@ def _tracked_members() -> dict[str, bytes]:
     members: dict[str, bytes] = {}
     for relative in paths:
         source = _ROOT / relative
-        if not source.is_file():
-            continue
+        assert stat.S_ISREG(source.stat(follow_symlinks=False).st_mode), (
+            f"tracked release member is not a regular file: {relative}"
+        )
         name = (
             "LICENSE"
             if relative == Path("LICENSE")
@@ -74,7 +80,43 @@ def _write_members(path: Path, members: dict[str, bytes]) -> None:
     """Write a small ZIP fixture with the supplied members."""
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
         for name, content in members.items():
-            archive.writestr(name, content)
+            info = zipfile.ZipInfo(name, _ARCHIVE_TIME)
+            info.compress_type = zipfile.ZIP_STORED
+            info.create_system = _ZIP_SYSTEM
+            info.external_attr = _FILE_MODE << 16
+            archive.writestr(info, content)
+
+
+def _release_repository(tmp_path: Path) -> Path:
+    """Create a minimal Git-indexed release source tree."""
+    root = tmp_path / "repository"
+    source = root / "custom_components/gentex_place"
+    source.mkdir(parents=True)
+    (root / "LICENSE").write_text("license")
+    (source / "manifest.json").write_text("{}")
+    subprocess.run(  # noqa: S603 - exact controlled Git test command
+        [  # noqa: S607 - Git must resolve from the test environment
+            "git",
+            "init",
+            "--quiet",
+            str(root),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [  # noqa: S607 - Git must resolve from the test environment
+            "git",
+            "add",
+            "--",
+            "custom_components/gentex_place",
+            "LICENSE",
+        ],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    return root
 
 
 def test_build_release_is_reproducible_and_has_exact_root_members(
@@ -110,6 +152,29 @@ def test_build_release_is_reproducible_and_has_exact_root_members(
             assert info.external_attr >> 16 == _FILE_MODE
             assert not info.is_dir()
             assert archive.read(info.filename) == expected[info.filename]
+
+
+def test_build_release_excludes_untracked_integration_files(tmp_path: Path) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    secret = root / "custom_components/gentex_place/credentials.json"
+    secret.write_text('{"token":"do not package"}')
+    archive_path = tmp_path / "gentex_place.zip"
+
+    build_release(root, archive_path)
+
+    with zipfile.ZipFile(archive_path) as archive:
+        assert archive.namelist() == ["LICENSE", "manifest.json"]
+        assert "credentials.json" not in archive.namelist()
+
+
+def test_build_release_rejects_missing_tracked_member(tmp_path: Path) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    (root / "custom_components/gentex_place/manifest.json").unlink()
+
+    with pytest.raises(ValueError, match="tracked release member is missing"):
+        build_release(root, tmp_path / "gentex_place.zip")
 
 
 @pytest.mark.parametrize(
@@ -183,17 +248,110 @@ def test_verify_release_rejects_inexact_members(
         verify_release(_ROOT, archive_path)
 
 
-def test_build_release_rejects_source_symlinks(tmp_path: Path) -> None:
-    build_release, _ = _release_functions()
-    source = tmp_path / "custom_components/gentex_place"
-    source.mkdir(parents=True)
-    (tmp_path / "LICENSE").write_text("license")
-    target = source / "manifest.json"
-    target.write_text("{}")
-    (source / "linked.json").symlink_to(target)
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        pytest.param("order", "member order", id="member-order"),
+        pytest.param("compression", "compression", id="compression"),
+        pytest.param("timestamp", "timestamp", id="timestamp"),
+        pytest.param("create-system", "origin system", id="create-system"),
+        pytest.param("mode", "mode", id="mode"),
+    ],
+)
+def test_verify_release_rejects_metadata_mutations(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    _, verify_release = _release_functions()
+    archive_path = tmp_path / "metadata.zip"
+    members = _tracked_members()
+    names = sorted(members, reverse=mutation == "order")
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        for index, name in enumerate(names):
+            info = zipfile.ZipInfo(name, _ARCHIVE_TIME)
+            info.compress_type = (
+                zipfile.ZIP_DEFLATED
+                if mutation == "compression" and index == 0
+                else zipfile.ZIP_STORED
+            )
+            if mutation == "timestamp" and index == 0:
+                info.date_time = (1980, 1, 2, 0, 0, 0)
+            info.create_system = (
+                0 if mutation == "create-system" and index == 0 else _ZIP_SYSTEM
+            )
+            mode = 0o100600 if mutation == "mode" and index == 0 else _FILE_MODE
+            info.external_attr = mode << 16
+            archive.writestr(info, members[name])
 
-    with pytest.raises(ValueError, match="source contains a symlink"):
-        build_release(tmp_path, tmp_path / "release.zip")
+    with pytest.raises(ValueError, match=message):
+        verify_release(_ROOT, archive_path)
+
+
+def test_build_release_rejects_tracked_file_swapped_for_symlink(
+    tmp_path: Path,
+) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    manifest = root / "custom_components/gentex_place/manifest.json"
+    target = root / "untracked-secret.json"
+    target.write_text('{"credential":"secret"}')
+    manifest.unlink()
+    manifest.symlink_to(target)
+
+    with pytest.raises(
+        ValueError, match="tracked release member is not a regular file"
+    ):
+        build_release(root, tmp_path / "release.zip")
+
+
+def test_build_release_rejects_symlinked_integration_root(tmp_path: Path) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    source = root / "custom_components/gentex_place"
+    target = root / "real-component"
+    source.rename(target)
+    source.symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="release source path contains a symlink"):
+        build_release(root, tmp_path / "release.zip")
+
+
+def test_source_reads_stay_anchored_to_the_open_repository_root(
+    tmp_path: Path,
+) -> None:
+    root = _release_repository(tmp_path)
+    module: ModuleType = importlib.import_module("scripts.build_release")
+    tracked_release_paths = cast(
+        "TrackedReleasePaths",
+        module._tracked_release_paths,  # noqa: SLF001 - security boundary seam
+    )
+    open_root = cast(
+        "OpenRoot",
+        module._open_root,  # noqa: SLF001 - security boundary seam
+    )
+    read_source = cast(
+        "ReadSource",
+        module._read_source,  # noqa: SLF001 - security boundary seam
+    )
+    tracked = dict(tracked_release_paths(root))
+    root_descriptor = open_root(root)
+    moved_root = tmp_path / "moved-repository"
+    root.rename(moved_root)
+    replacement_source = root / "custom_components/gentex_place"
+    replacement_source.mkdir(parents=True)
+    (replacement_source / "manifest.json").write_text("replacement")
+
+    try:
+        content = read_source(
+            root_descriptor,
+            "manifest.json",
+            tracked["manifest.json"],
+        )
+    finally:
+        os.close(root_descriptor)
+
+    assert content == b"{}"
 
 
 def test_release_cli_builds_and_verifies_an_archive(tmp_path: Path) -> None:
