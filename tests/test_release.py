@@ -423,8 +423,14 @@ def test_v1_release_notes_cover_the_public_distribution_contract() -> None:
 def test_readme_covers_v1_install_upgrade_and_rollback() -> None:
     readme = (_ROOT / "README.md").read_text()
     normalized_readme = _normalized(readme)
+    release_language = normalized_readme.casefold()
 
-    assert "current stable release candidate is `v1.0.0`" in normalized_readme
+    assert "`v1.0.0` is the first stable version" in release_language
+    assert f"{_REPOSITORY_URL}/releases" in readme
+    assert "before publication" in release_language
+    assert "after publication" in release_language
+    assert "release candidate" not in release_language
+    assert "gates remain" not in release_language
     assert _REPOSITORY_URL in readme
     assert "not in the HACS default store" in normalized_readme
     assert "blocked on licensed brand-art" not in normalized_readme

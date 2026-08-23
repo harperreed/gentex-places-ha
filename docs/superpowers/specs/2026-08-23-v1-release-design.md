@@ -201,6 +201,12 @@ Git SDK dependency, and credit the original MIT Home Shield artwork.
 The notes will not claim HACS default-store inclusion, Home Assistant Core support,
 PyPI publication, write control, or behavior that the integration does not provide.
 
+README release guidance will use GitHub Releases as the source of truth for public
+version and asset availability. It will name `v1.0.0` as the first stable version
+and describe the checks required before and after publication. It will not carry a
+temporary candidate label, an open-gates checklist, or any claim that becomes false
+when the workflow publishes the release.
+
 ## Branch protection
 
 Before the release pull request merges, the public repository's `main` branch will

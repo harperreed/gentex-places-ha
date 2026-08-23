@@ -1,5 +1,5 @@
 <!-- ABOUTME: Documents installation, setup, entities, privacy, and support for Gentex PLACE. -->
-<!-- ABOUTME: Records the read-only live check and the release gates that remain open. -->
+<!-- ABOUTME: Records the read-only live check and the stable release process. -->
 
 # Gentex PLACE for Home Assistant
 
@@ -257,18 +257,22 @@ It exits nonzero on authentication, discovery, connection, or 30-second readines
 failure and closes its HTTP session and PLACE client on every exit path. An authorized
 run passed on 2026-08-21 against commit `a11133a`: the account connected and every
 discovered device produced reported state while the script printed aggregate counts
-only. Repeat this check for each release candidate.
+only. Repeat this check before each proposed release.
 
-## Release status
+## Releases
 
-The current stable release candidate is `v1.0.0`, distributed through this HACS
-custom repository. The canonical local checks and authorized live read-only check
-pass. These final release gates remain:
+`v1.0.0` is the first stable version. [GitHub Releases](https://github.com/harperreed/gentex-places-ha/releases)
+is the source of truth for which versions are public and which ZIP and checksum
+assets are available. HACS can install a version only after it appears there.
 
-- remote `test` and Hassfest checks;
-- a remote HACS result of 9/9;
-- verification of the public ZIP and checksum assets; and
-- a live HACS upgrade followed by a Home Assistant restart and state check.
+Before publication, each proposed version must pass `scripts/check`, Hassfest, and
+HACS validation. The workflow then builds a draft ZIP and checksum and verifies the
+tag, target commit, asset bytes, checksum, and archive contents.
+
+After publication, maintainers download both assets without repository credentials,
+compare them with a clean build from the tagged commit, and test the HACS upgrade in
+Home Assistant. If that check finds a defect, the fix ships as a higher version;
+the published tag and assets stay unchanged.
 
 The release detector checks every push to `main`. The workflow publishes only when
 both version sources increase together to the same valid stable version. An
