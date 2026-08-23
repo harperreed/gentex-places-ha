@@ -71,7 +71,11 @@ def _check_runs() -> dict[str, Any]:
 def _protection_response() -> dict[str, Any]:
     """Build the GitHub branch-protection read-back shape."""
     return {
-        "required_status_checks": {"strict": True, "checks": deepcopy(_CHECKS)},
+        "required_status_checks": {
+            "strict": True,
+            "contexts": [],
+            "checks": deepcopy(_CHECKS),
+        },
         "enforce_admins": {"enabled": True},
         "required_pull_request_reviews": {
             "required_approving_review_count": 0,
@@ -215,7 +219,11 @@ def test_protection_payload_is_the_exact_protected_main_policy() -> None:
     payload = protection_payload(_CHECKS)
 
     assert payload == {
-        "required_status_checks": {"strict": True, "checks": _CHECKS},
+        "required_status_checks": {
+            "strict": True,
+            "contexts": [],
+            "checks": _CHECKS,
+        },
         "enforce_admins": True,
         "required_pull_request_reviews": {
             "required_approving_review_count": 0,
@@ -233,9 +241,75 @@ def test_validate_protection_accepts_exact_github_read_back() -> None:
 
 
 @pytest.mark.parametrize(
+    "allowances",
+    [
+        {"users": [], "teams": []},
+        {"users": [], "teams": [], "apps": []},
+    ],
+)
+def test_validate_protection_accepts_structurally_empty_bypass_allowances(
+    allowances: dict[str, list[object]],
+) -> None:
+    response = _protection_response()
+    response["required_pull_request_reviews"]["bypass_pull_request_allowances"] = (
+        allowances
+    )
+
+    validate_protection(response, _CHECKS)
+
+
+@pytest.mark.parametrize(
+    "allowances",
+    [
+        pytest.param(
+            {"users": [{"login": "octocat"}], "teams": []},
+            id="user-bypass",
+        ),
+        pytest.param(
+            {"users": [], "teams": [{"slug": "release"}]},
+            id="team-bypass",
+        ),
+        pytest.param(
+            {"users": [], "teams": [], "apps": [{"slug": "octoapp"}]},
+            id="app-bypass",
+        ),
+        pytest.param(None, id="null"),
+        pytest.param({}, id="missing-required-lists"),
+        pytest.param({"users": []}, id="missing-teams"),
+        pytest.param({"teams": []}, id="missing-users"),
+        pytest.param({"users": "octocat", "teams": []}, id="users-not-list"),
+        pytest.param({"users": [], "teams": None}, id="teams-not-list"),
+        pytest.param(
+            {"users": [], "teams": [], "apps": None},
+            id="apps-not-list",
+        ),
+        pytest.param(
+            {"users": [], "teams": [], "unknown": []},
+            id="unknown-field",
+        ),
+    ],
+)
+def test_validate_protection_rejects_bypass_allowances(
+    allowances: object,
+) -> None:
+    response = _protection_response()
+    response["required_pull_request_reviews"]["bypass_pull_request_allowances"] = (
+        allowances
+    )
+
+    with pytest.raises(ValueError, match="bypass_pull_request_allowances"):
+        validate_protection(response, _CHECKS)
+
+
+@pytest.mark.parametrize(
     ("path", "value", "message"),
     [
         ("required_status_checks.strict", False, "required_status_checks.strict"),
+        (
+            "required_status_checks.contexts",
+            ["test"],
+            "required_status_checks.contexts",
+        ),
         (
             "required_status_checks.checks",
             [{"context": "hacs", "app_id": 99999}, *_CHECKS[1:]],
@@ -272,6 +346,14 @@ def test_validate_protection_rejects_policy_drift(
     _set_path(response, path, value)
 
     with pytest.raises(ValueError, match=message):
+        validate_protection(response, _CHECKS)
+
+
+def test_validate_protection_rejects_missing_required_status_contexts() -> None:
+    response = _protection_response()
+    del response["required_status_checks"]["contexts"]
+
+    with pytest.raises(ValueError, match=r"required_status_checks\.contexts"):
         validate_protection(response, _CHECKS)
 
 

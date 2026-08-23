@@ -71,7 +71,11 @@ def protection_payload(
 ) -> dict[str, Any]:
     """Build the exact protected-main request document."""
     return {
-        "required_status_checks": {"strict": True, "checks": checks},
+        "required_status_checks": {
+            "strict": True,
+            "contexts": [],
+            "checks": checks,
+        },
         "enforce_admins": True,
         "required_pull_request_reviews": {
             "required_approving_review_count": 0,
@@ -107,12 +111,26 @@ def validate_protection(
 ) -> None:
     """Reject a GitHub read-back document that differs from the required policy."""
     _require_field(response, "required_status_checks.strict", expected=True)
+    _require_field(response, "required_status_checks.contexts", [])
     _require_field(response, "required_status_checks.checks", checks)
     _require_field(response, "enforce_admins.enabled", expected=True)
     reviews = _read_field(response, "required_pull_request_reviews")
     if not isinstance(reviews, dict):
         message = "branch protection mismatch: required_pull_request_reviews"
         raise ValueError(message)  # noqa: TRY004 - CLI policy errors use ValueError
+    allowances = reviews.get("bypass_pull_request_allowances", _MISSING)
+    if allowances is not _MISSING and (
+        not isinstance(allowances, dict)
+        or not set(allowances).issubset({"users", "teams", "apps"})
+        or allowances.get("users", _MISSING) != []
+        or allowances.get("teams", _MISSING) != []
+        or allowances.get("apps", []) != []
+    ):
+        message = (
+            "branch protection mismatch: "
+            "required_pull_request_reviews.bypass_pull_request_allowances"
+        )
+        raise ValueError(message)
     _require_field(
         response,
         "required_pull_request_reviews.required_approving_review_count",
