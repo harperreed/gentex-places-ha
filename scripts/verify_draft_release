@@ -1,0 +1,75 @@
+#!/bin/sh
+# ABOUTME: Verifies uploaded draft assets and their exact release commit.
+# ABOUTME: Publishes nothing and preserves a failed draft for diagnosis.
+set -eu
+
+fail() {
+    printf '%s\n' "$1" >&2
+    exit 1
+}
+
+[ "$#" -eq 2 ] || fail "usage: scripts/verify_draft_release VERSION SHA"
+version=$1
+release_sha=$2
+
+case "$version" in
+    "" | *[!0-9.]* | .* | *. | *..* | *.*.*.*)
+        fail "version must be a stable semantic version"
+        ;;
+esac
+
+major=${version%%.*}
+remainder=${version#*.}
+minor=${remainder%%.*}
+patch=${remainder#*.}
+for component in "$major" "$minor" "$patch"; do
+    case "$component" in
+        0 | [1-9] | [1-9][0-9]*) ;;
+        *) fail "version must be a stable semantic version" ;;
+    esac
+done
+
+case "$release_sha" in
+    "" | *[!0-9a-f]*) fail "SHA must be 40 lowercase hexadecimal characters" ;;
+esac
+[ "${#release_sha}" -eq 40 ] || fail "SHA must be 40 lowercase hexadecimal characters"
+
+: "${GH_TOKEN:?GH_TOKEN must be set}"
+: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
+
+download_dir=$(mktemp -d "${TMPDIR:-/tmp}/gentex-place-release.XXXXXX")
+case "$download_dir" in
+    "${TMPDIR:-/tmp}"/gentex-place-release.*) ;;
+    *) fail "mktemp returned an unexpected release directory" ;;
+esac
+[ -d "$download_dir" ] || fail "mktemp did not create a release directory"
+cleanup() {
+    case "$download_dir" in
+        "${TMPDIR:-/tmp}"/gentex-place-release.*)
+            rm -rf -- "$download_dir"
+            ;;
+        *) fail "refusing to remove an unexpected release directory" ;;
+    esac
+}
+trap cleanup EXIT HUP INT TERM
+
+gh release download "v$version" \
+    --repo "$GITHUB_REPOSITORY" \
+    --dir "$download_dir" \
+    --pattern gentex_place.zip \
+    --pattern gentex_place.zip.sha256
+cmp -- dist/gentex_place.zip "$download_dir/gentex_place.zip"
+cmp -- dist/gentex_place.zip.sha256 "$download_dir/gentex_place.zip.sha256"
+(cd "$download_dir" && sha256sum --check gentex_place.zip.sha256)
+uv run python scripts/build_release.py --verify "$download_dir/gentex_place.zip"
+
+draft=$(gh release view "v$version" \
+    --repo "$GITHUB_REPOSITORY" \
+    --json isDraft --jq .isDraft)
+[ "$draft" = "true" ] || fail "release v$version is not a draft"
+
+tag_sha=$(gh api --method GET \
+    -H "X-GitHub-Api-Version: 2026-03-10" \
+    "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" \
+    --jq .object.sha)
+[ "$tag_sha" = "$release_sha" ] || fail "release tag v$version does not target $release_sha"

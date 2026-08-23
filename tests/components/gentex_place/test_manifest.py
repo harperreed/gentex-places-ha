@@ -18,51 +18,96 @@ _SDK_SHA = "d92f07ecc9b7e66162d60d4a66cc07366543b631"
 _SDK_GIT_URL = "https://github.com/harperreed/place-integration-api.git"
 _SDK_REQUIREMENT = f"place-integration-api@git+{_SDK_GIT_URL}@{_SDK_SHA}"
 _WORKFLOW_JOB_COUNT = 3
+_RELEASE_CHECKOUT_COUNT = 2
 _DEPENDABOT_UPDATE_COUNT = 2
 _CHECKOUT_ACTION = "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
-_SETUP_UV_SHA = "ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d"
-_UPLOAD_ARTIFACT_ACTION = (
-    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-)
 _EXPECTED_RELEASE_WORKFLOW = (
-    "name: Build release candidate\n"
-    "\n"
-    "on:\n"
-    "  workflow_dispatch:\n"
-    "    inputs:\n"
-    "      version:\n"
-    "        description: Version matching pyproject.toml and the integration "
-    "manifest\n"
-    "        required: true\n"
-    "        type: string\n"
-    "\n"
-    "permissions:\n"
-    "  contents: read\n"
-    "\n"
-    "jobs:\n"
-    "  artifact:\n"
-    "    runs-on: ubuntu-latest\n"
-    "    steps:\n"
-    f"      - uses: {_CHECKOUT_ACTION}\n"
-    "        with:\n"
-    "          persist-credentials: false\n"
-    f"      - uses: astral-sh/setup-uv@{_SETUP_UV_SHA}\n"
-    "      - run: uv python install 3.14.2\n"
-    "      - run: scripts/check\n"
-    "      - name: Check release version\n"
-    "        env:\n"
-    "          RELEASE_VERSION: ${{ inputs.version }}\n"
-    '        run: uv run python scripts/check_release.py "$RELEASE_VERSION"\n'
-    "      - name: Build integration archive\n"
-    "        run: >-\n"
-    "          git archive --format=zip --prefix=gentex_place/\n"
-    "          --add-file=LICENSE --output=gentex_place.zip\n"
-    "          HEAD:custom_components/gentex_place\n"
-    f"      - uses: {_UPLOAD_ARTIFACT_ACTION}\n"
-    "        with:\n"
-    "          name: gentex_place-${{ inputs.version }}\n"
-    "          path: gentex_place.zip\n"
-    "          if-no-files-found: error\n"
+    """name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      release_required: ${{ steps.version.outputs.release_required }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d
+      - run: uv python install 3.14.2
+      - name: Detect version change
+        id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: uv run python scripts/check_release.py "$BEFORE_SHA" "$AFTER_SHA" """
+    '--github-output "$GITHUB_OUTPUT"'
+    """
+      - name: Refuse an existing tag or release
+        if: steps.version.outputs.release_required == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/check_release_absent "$RELEASE_VERSION"
+
+  publish:
+    needs: detect
+    if: needs.detect.outputs.release_required == 'true'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d
+      - run: uv python install 3.14.2
+      - run: scripts/check
+      - name: Recheck release decision
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: uv run python scripts/check_release.py "$BEFORE_SHA" "$AFTER_SHA" """
+    "--require-release"
+    """
+      - name: Refuse a raced tag or release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        run: scripts/check_release_absent "$RELEASE_VERSION"
+      - name: Build release assets
+        run: uv run python scripts/build_release.py --output dist/gentex_place.zip
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        run: gh release create "v$RELEASE_VERSION" dist/gentex_place.zip """
+    'dist/gentex_place.zip.sha256 --draft --target "$GITHUB_SHA" '
+    '--title "v$RELEASE_VERSION" --notes-file '
+    '"docs/releases/v$RELEASE_VERSION.md"'
+    """
+      - name: Verify uploaded draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        run: scripts/verify_draft_release "$RELEASE_VERSION" "$GITHUB_SHA"
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        run: gh release edit "v$RELEASE_VERSION" --draft=false --latest
+"""
 )
 
 
@@ -170,33 +215,59 @@ def _assert_release_workflow_contract(workflow: str) -> None:
     assert workflow == _EXPECTED_RELEASE_WORKFLOW
 
 
-def test_release_workflow_builds_only_a_read_only_manual_artifact() -> None:
+def test_release_workflow_publishes_only_a_verified_version_change() -> None:
     workflow = (_ROOT / ".github/workflows/release.yml").read_text()
 
     _assert_release_workflow_contract(workflow)
+    assert "push:\n    branches:\n      - main" in workflow
+    assert "workflow_dispatch" not in workflow
+    assert "permissions:\n  contents: read" in workflow
+    assert workflow.count("contents: write") == 1
+    assert "if: needs.detect.outputs.release_required == 'true'" in workflow
+    assert workflow.count("persist-credentials: false") == _RELEASE_CHECKOUT_COUNT
+    assert "scripts/check" in workflow
+    assert "scripts/build_release.py" in workflow
+    assert "--draft" in workflow
+    assert "scripts/verify_draft_release" in workflow
+    assert "--draft=false" in workflow
+    assert "gh release delete" not in workflow
+    assert "gh release upload --clobber" not in workflow
 
 
 @pytest.mark.parametrize(
     ("anchor", "unsafe_replacement"),
     [
-        ("\npermissions:\n", "\n  push:\n\npermissions:\n"),
         (
             "permissions:\n  contents: read",
             "permissions:\n  contents: read\n  issues: write",
         ),
         (
-            f"      - uses: {_UPLOAD_ARTIFACT_ACTION}",
+            f"      - uses: {_CHECKOUT_ACTION}",
+            "      - uses: actions/checkout@main",
+        ),
+        (
+            "    if: needs.detect.outputs.release_required == 'true'\n",
+            "",
+        ),
+        (
+            "    permissions:\n      contents: write\n",
             (
-                "      - uses: untrusted/example@"
-                "0000000000000000000000000000000000000000\n"
-                f"      - uses: {_UPLOAD_ARTIFACT_ACTION}"
+                "    permissions:\n      contents: write\n"
+                "    env:\n      GH_TOKEN: ${{ github.token }}\n"
             ),
         ),
         (
-            "      - name: Check release version",
+            "      - name: Publish verified release\n",
             (
-                "      - run: curl https://example.invalid/publish\n"
-                "      - name: Check release version"
+                "      - run: gh release delete v1.0.0\n"
+                "      - name: Publish verified release\n"
+            ),
+        ),
+        (
+            "      - name: Verify uploaded draft\n",
+            (
+                "      - run: gh release upload --clobber v1.0.0 asset.zip\n"
+                "      - name: Verify uploaded draft\n"
             ),
         ),
     ],
@@ -211,6 +282,42 @@ def test_release_workflow_contract_rejects_extra_capabilities(
 
     with pytest.raises(AssertionError):
         _assert_release_workflow_contract(unsafe_workflow)
+
+
+def test_release_scripts_fail_closed_and_verify_uploaded_assets() -> None:
+    absent_path = _ROOT / "scripts/check_release_absent"
+    verify_path = _ROOT / "scripts/verify_draft_release"
+    absent = absent_path.read_text()
+    verify = verify_path.read_text()
+
+    for path, script in ((absent_path, absent), (verify_path, verify)):
+        header = script.splitlines()[:4]
+        assert header[0] == "#!/bin/sh"
+        assert header[1].startswith("# ABOUTME:")
+        assert header[2].startswith("# ABOUTME:")
+        assert header[3] == "set -eu"
+        assert path.stat().st_mode & stat.S_IXUSR
+        assert "set -x" not in script
+        assert "${{" not in script
+        assert "gh release delete" not in script
+        assert "gh release upload --clobber" not in script
+        assert 'case "$version" in' in script
+        assert "*[!0-9.]*" in script
+
+    assert 'git ls-remote --exit-code --tags origin "refs/tags/v$version"' in absent
+    assert "/repos/$GITHUB_REPOSITORY/releases/tags/v$version" in absent
+    assert '"404"' in absent
+    assert '"200"' in absent
+
+    assert 'mktemp -d "${TMPDIR:-/tmp}/gentex-place-release.XXXXXX"' in verify
+    assert 'gh release download "v$version"' in verify
+    assert 'cmp -- dist/gentex_place.zip "$download_dir/gentex_place.zip"' in verify
+    assert "sha256sum --check gentex_place.zip.sha256" in verify
+    assert (
+        'scripts/build_release.py --verify "$download_dir/gentex_place.zip"' in verify
+    )
+    assert "--json isDraft --jq .isDraft" in verify
+    assert '"repos/$GITHUB_REPOSITORY/git/ref/tags/v$version"' in verify
 
 
 def test_dependabot_tracks_locked_python_and_action_dependencies() -> None:

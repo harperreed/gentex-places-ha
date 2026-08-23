@@ -7,10 +7,8 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
 import subprocess
 import sys
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -236,36 +234,10 @@ def test_cli_require_release_rejects_noop_without_writing_output(
     assert not github_output.exists()
 
 
-def test_workflow_archive_contains_integration_and_full_license() -> None:
+def test_workflow_builds_the_verified_root_level_release_archive() -> None:
     workflow = (_ROOT / ".github/workflows/release.yml").read_text()
-    archive_block = re.search(
-        r"      - name: Build integration archive\n"
-        r"        run: >-\n"
-        r"(?P<command>(?:          .+\n)+)",
-        workflow,
-    )
-    assert archive_block is not None
-    command = " ".join(
-        line.strip() for line in archive_block.group("command").splitlines()
-    )
-    archive_path = _ROOT / "gentex_place.zip"
-    assert not archive_path.exists()
-    try:
-        subprocess.run(  # noqa: S603 - exact checked repository workflow command
-            shlex.split(command),
-            cwd=_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        with zipfile.ZipFile(archive_path) as archive:
-            names = set(archive.namelist())
-            assert names
-            assert all(name.startswith("gentex_place/") for name in names)
-            assert "gentex_place/manifest.json" in names
-            assert "gentex_place/LICENSE" in names
-            assert (
-                archive.read("gentex_place/LICENSE") == (_ROOT / "LICENSE").read_bytes()
-            )
-    finally:
-        archive_path.unlink(missing_ok=True)
+
+    assert (
+        "run: uv run python scripts/build_release.py --output dist/gentex_place.zip"
+    ) in workflow
+    assert "git archive" not in workflow
