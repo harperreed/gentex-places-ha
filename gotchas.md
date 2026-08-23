@@ -75,3 +75,9 @@
 - HACS `zip_release` extracts straight into `/config/custom_components/gentex_place`.
   Its asset must put the tracked integration files and root `LICENSE` at the ZIP
   root; a `gentex_place/` wrapper creates a broken nested install.
+- Validation runs on pull requests and pushes to `main`, not work-branch pushes.
+  Branch protection accepts exactly one successful GitHub Actions run for each
+  required name; duplicates and mixed results fail closed because freshness is unproven.
+- Snapshot every tracked release source before touching output. Reject ZIP/checksum
+  symlinks and source aliases, verify fresh same-directory stages, then replace the
+  checksum before the complete ZIP so a stale checksum cannot bless new ZIP bytes.
