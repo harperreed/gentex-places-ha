@@ -27,6 +27,16 @@ _ARGPARSE_ERROR = 2
 _REPOSITORY_URL = "https://github.com/harperreed/gentex-places-ha"
 _HA_BACKUP_URL = "https://www.home-assistant.io/common-tasks/general/#backups"
 _HACS_UPDATE_URL = "https://hacs.xyz/docs/use/update/"
+_V1_DOCUMENT_CONTRACTS = (
+    (
+        Path("README.md"),
+        "does not move a published tag or replace its zip asset",
+    ),
+    (
+        Path("docs/releases/v1.0.0.md"),
+        "published tags and assets stay unchanged",
+    ),
+)
 
 
 def _write_metadata(root: Path, *, project_version: str, manifest_version: str) -> None:
@@ -97,6 +107,74 @@ def _headings(document: str) -> set[str]:
         match.group(1).casefold()
         for match in re.finditer(r"^##\s+(.+)$", document, flags=re.MULTILINE)
     }
+
+
+def _section(document: str, heading_keyword: str) -> str:
+    """Return one normalized Markdown section selected by heading meaning."""
+    section = re.search(
+        rf"^##\s+[^\n]*{re.escape(heading_keyword)}[^\n]*\n"
+        r"(?P<body>.*?)(?=^##\s+|\Z)",
+        document,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    assert section is not None
+    return _normalized(section.group("body")).casefold()
+
+
+def _assert_v1_hacs_lifecycle_contract(
+    document: str,
+    *,
+    immutable_rule: str,
+) -> None:
+    """Require meaningful v1 HACS install, upgrade, and recovery guidance."""
+    install = _section(document, "install")
+    upgrade = _section(document, "upgrade")
+    rollback = _section(document, "rollback")
+
+    assert re.search(
+        r"choose \*\*custom repositories\*\*.*"
+        r"with the type \*\*integration\*\*.*"
+        r"choose \*\*download\*\*.*"
+        r"under \*\*need a different version\?\*\*.*"
+        r"choose \*\*download\*\*",
+        install,
+    )
+    assert re.search(
+        r"\*\*download backup\*\*.*"
+        r"\*\*redownload\*\*.*"
+        r"\*\*need a different version\?\*\*.*"
+        r"\*\*download\*\*",
+        upgrade,
+    )
+    assert re.search(
+        r"`v1\.0\.0` is (?:this repository's|the) first release, so hacs has "
+        r"no earlier (?:gentex place )?release to select",
+        rollback,
+    )
+    assert (
+        "off-device **download backup** copy remains available for wider "
+        "home assistant recovery"
+    ) in rollback
+    assert re.search(
+        r"for (?:releases after `v1\.0\.0`|later releases), hacs "
+        r"\*\*redownload\*\* (?:can select|may offer) an earlier published "
+        r"version under \*\*need a different version\?\*\*",
+        rollback,
+    )
+    assert immutable_rule.casefold() in rollback
+    assert "end-to-end" not in _normalized(document).casefold()
+
+
+def test_section_includes_nested_markdown_headings() -> None:
+    document = """## Install
+Before
+### Detail
+After
+## Upgrade
+Next
+"""
+
+    assert _section(document, "install") == "before ### detail after"
 
 
 @pytest.mark.parametrize("value", ["v1.0.0", "1.0", "1.0.0-rc1", "1.0.0+1", "01.0.0"])
@@ -316,25 +394,83 @@ def test_v1_upgrade_has_a_first_release_backup_and_restore_path(
     relative_path: Path,
 ) -> None:
     document = (_ROOT / relative_path).read_text()
-    normalized = _normalized(document)
+    upgrade = _section(document, "upgrade")
+    rollback = _section(document, "rollback")
 
     assert _HA_BACKUP_URL in document
     assert _HACS_UPDATE_URL in document
-    assert "Settings > System > Backups" in normalized
-    for control in ("Backup now", "Manual backup", "Create backup"):
-        assert control in normalized
-    assert "Show all backups" in normalized
-    assert "Download backup" in normalized
-    assert "backup emergency kit" in normalized.casefold()
-    assert "`config`" in normalized
-    assert "config entries" in normalized
-    assert "Restore" in normalized
-    assert "higher patch" in normalized
-    for immutable_part in ("tag", "asset", "unchanged"):
-        assert immutable_part in normalized
+    assert "settings > system > backups" in upgrade
+    for control in ("backup now", "manual backup", "create backup"):
+        assert control in upgrade
+    assert "show all backups" in upgrade
+    assert "download backup" in upgrade
+    assert "backup emergency kit" in upgrade
+    assert "`config`" in upgrade
+    assert "config entries" in upgrade
+    assert "restore" in rollback
+    assert "higher patch" in rollback
     assert any("install" in heading for heading in _headings(document))
     assert any("upgrade" in heading for heading in _headings(document))
     assert any("rollback" in heading for heading in _headings(document))
+
+
+@pytest.mark.parametrize(("relative_path", "immutable_rule"), _V1_DOCUMENT_CONTRACTS)
+def test_v1_hacs_lifecycle_contract(
+    relative_path: Path,
+    immutable_rule: str,
+) -> None:
+    document = (_ROOT / relative_path).read_text()
+
+    _assert_v1_hacs_lifecycle_contract(document, immutable_rule=immutable_rule)
+
+
+@pytest.mark.parametrize(("relative_path", "immutable_rule"), _V1_DOCUMENT_CONTRACTS)
+@pytest.mark.parametrize(
+    ("required", "replacement"),
+    [
+        ("Custom repositories", "Repository settings"),
+        ("**Integration**", "**Plugin**"),
+        ("**Download**", "**Fetch**"),
+        ("**Redownload**", "**Reinstall**"),
+        ("**Need a different version?**", "**Choose version**"),
+        ("no earlier", "an earlier"),
+        ("**Download backup**", "**Keep backup**"),
+        ("earlier published version", "current published version"),
+    ],
+)
+def test_v1_hacs_lifecycle_contract_rejects_missing_guidance(
+    relative_path: Path,
+    immutable_rule: str,
+    required: str,
+    replacement: str,
+) -> None:
+    document = _normalized((_ROOT / relative_path).read_text())
+    mutated = document.replace(required, replacement)
+    assert mutated != document
+
+    with pytest.raises(AssertionError):
+        _assert_v1_hacs_lifecycle_contract(mutated, immutable_rule=immutable_rule)
+
+
+@pytest.mark.parametrize(("relative_path", "immutable_rule"), _V1_DOCUMENT_CONTRACTS)
+def test_v1_hacs_lifecycle_contract_rejects_mutable_release_guidance(
+    relative_path: Path,
+    immutable_rule: str,
+) -> None:
+    document = (_ROOT / relative_path).read_text()
+    normalized_rule = immutable_rule.casefold()
+    mutated = (
+        _normalized(document)
+        .casefold()
+        .replace(
+            normalized_rule,
+            "published release files may be replaced",
+        )
+    )
+    assert mutated != _normalized(document).casefold()
+
+    with pytest.raises(AssertionError):
+        _assert_v1_hacs_lifecycle_contract(mutated, immutable_rule=immutable_rule)
 
 
 def test_readme_states_detection_and_publication_as_separate_release_steps() -> None:
