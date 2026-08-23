@@ -17,8 +17,11 @@ To install Gentex PLACE as a HACS custom repository:
 1. In HACS, open the three-dot menu and choose **Custom repositories**.
 2. Add `https://github.com/harperreed/gentex-places-ha` with the type
    **Integration**.
-3. Open **Gentex PLACE**, select `v1.0.0`, and choose **Download**.
-4. Restart Home Assistant.
+3. On the **Gentex PLACE** entry, open the three-dot menu and choose
+   **Download**.
+4. Under **Need a different version?**, select `v1.0.0`, then choose
+   **Download**.
+5. Restart Home Assistant.
 
 See the [HACS custom-repository instructions](https://hacs.xyz/docs/faq/custom_repositories/)
 if the menu differs in your HACS version. This repository is not in the HACS
@@ -28,21 +31,42 @@ default store.
 
 To upgrade the custom repository to `v1.0.0`:
 
-1. In HACS, open **Gentex PLACE**.
-2. Open the three-dot menu, choose **Redownload**, select `v1.0.0`, and choose
+1. Go to **Settings > System > Backups**. In the lower-right corner, choose
+   **Backup now**, then **Manual backup**.
+2. Make sure the backup data includes the `config` folder, name the backup, and
+   choose its location.
+3. Download the backup emergency kit and store it safely, then select
+   **Create backup**.
+4. Select **Show all backups**. Select the new backup, open its three-dot menu, and
+   choose **Download backup**. Keep that copy on another device.
+5. In HACS, find **Gentex PLACE**. On its entry, open the three-dot menu and choose
+   **Redownload**.
+6. Under **Need a different version?**, select `v1.0.0`, then choose
    **Download**.
-3. Restart Home Assistant.
-4. Confirm that the integration loads and its account and device entities update.
+7. Restart Home Assistant.
+8. Confirm that the integration loads and its account and device entities update.
+
+These backup steps follow the official [Home Assistant backup instructions](https://www.home-assistant.io/common-tasks/general/#backups)
+and [HACS repository update instructions](https://hacs.xyz/docs/use/update/).
+The `config` backup contains the installed custom integration and Home Assistant's
+stored config entries.
 
 ## Rollback
 
-If an upgrade fails, save the Home Assistant logs before changing the install:
+`v1.0.0` is this repository's first release, so HACS has no earlier release to
+select. If the upgrade fails, do not delete the integration or its config entry:
 
-1. In HACS, open **Gentex PLACE**.
-2. Open the three-dot menu, choose **Redownload**, select the prior working
-   version, and choose **Download**.
-3. Restart Home Assistant and confirm that the integration reconnects.
-4. Keep the failed downloaded asset and sanitized logs for the bug report.
+1. Save sanitized Home Assistant logs and keep the failed downloaded asset.
+2. Go to **Settings > System > Backups**, choose **Show all backups**, and select
+   the manual backup made before the upgrade.
+3. Select the `config` folder and choose **Restore**. This overwrites configuration
+   changes made since the backup and restarts Home Assistant.
+4. Sign in after the restart and confirm that the restored Gentex PLACE config
+   entries reconnect without being added again.
+
+The off-device **Download backup** copy remains available for wider Home Assistant
+recovery. For releases after `v1.0.0`, HACS **Redownload** can select an earlier
+published version under **Need a different version?** when HACS offers it.
 
 A broken release stays unchanged. Its fix ships as a higher patch version; the
 project does not move a published tag or replace its ZIP asset.
@@ -246,11 +270,13 @@ pass. These final release gates remain:
 - verification of the public ZIP and checksum assets; and
 - a live HACS upgrade followed by a Home Assistant restart and state check.
 
-The release workflow runs only when both version sources make the same valid
-increase on `main`. It builds deterministic `gentex_place.zip` and
-`gentex_place.zip.sha256` assets, verifies the draft, then publishes it. Ordinary
-merges are read-only no-ops. Failed drafts stay intact for review, and published
-releases are immutable.
+The release detector checks every push to `main`. The workflow publishes only when
+both version sources increase together to the same valid stable version. An
+unchanged matching version is a read-only no-op; invalid or mismatched metadata
+fails the workflow. For a valid increase, the publisher builds deterministic
+`gentex_place.zip` and `gentex_place.zip.sha256` assets, verifies the draft, then
+publishes it. Failed drafts stay intact for review, and published releases are
+immutable.
 
 ## License
 

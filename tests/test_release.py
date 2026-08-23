@@ -24,6 +24,9 @@ _ROOT = Path(__file__).parents[1]
 _CHECKER = _ROOT / "scripts/check_release.py"
 _MANIFEST = Path("custom_components/gentex_place/manifest.json")
 _ARGPARSE_ERROR = 2
+_REPOSITORY_URL = "https://github.com/harperreed/gentex-places-ha"
+_HA_BACKUP_URL = "https://www.home-assistant.io/common-tasks/general/#backups"
+_HACS_UPDATE_URL = "https://hacs.xyz/docs/use/update/"
 
 
 def _write_metadata(root: Path, *, project_version: str, manifest_version: str) -> None:
@@ -81,6 +84,19 @@ def _run_checker(*args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def _normalized(document: str) -> str:
+    """Collapse prose whitespace while keeping meaningful contract text."""
+    return " ".join(document.split())
+
+
+def _headings(document: str) -> set[str]:
+    """Return normalized level-two Markdown headings."""
+    return {
+        match.group(1).casefold()
+        for match in re.finditer(r"^##\s+(.+)$", document, flags=re.MULTILINE)
+    }
 
 
 @pytest.mark.parametrize("value", ["v1.0.0", "1.0", "1.0.0-rc1", "1.0.0+1", "01.0.0"])
@@ -249,6 +265,7 @@ def test_v1_release_notes_cover_the_public_distribution_contract() -> None:
 
     assert notes_path.is_file()
     notes = notes_path.read_text()
+    normalized_notes = _normalized(notes)
     for required in (
         "# Gentex PLACE v1.0.0",
         "read-only",
@@ -261,18 +278,73 @@ def test_v1_release_notes_cover_the_public_distribution_contract() -> None:
     ):
         assert required in notes
 
-    assert "not in the HACS default store" in notes
-    assert "not a Home Assistant Core integration" in notes
-    assert "does not publish the SDK to PyPI" in notes
+    assert _REPOSITORY_URL in notes
+    for required_feature in (
+        "cloud-push",
+        "five-minute health refresh",
+        "device discovery",
+        "alarms",
+        "telemetry",
+        "diagnostics",
+        "MFA",
+        "reauthentication",
+        "multiple-account support",
+    ):
+        assert required_feature in normalized_notes
+    assert "not in the HACS default store" in normalized_notes
+    assert "not a Home Assistant Core integration" in normalized_notes
+    assert "does not publish the SDK to PyPI" in normalized_notes
+    assert "end-to-end" not in normalized_notes.casefold()
 
 
 def test_readme_covers_v1_install_upgrade_and_rollback() -> None:
     readme = (_ROOT / "README.md").read_text()
-    normalized_readme = " ".join(readme.split())
+    normalized_readme = _normalized(readme)
 
     assert "current stable release candidate is `v1.0.0`" in normalized_readme
-    assert "https://github.com/harperreed/gentex-places-ha" in readme
+    assert _REPOSITORY_URL in readme
     assert "not in the HACS default store" in normalized_readme
     assert "blocked on licensed brand-art" not in normalized_readme
-    for heading in ("## Installation", "## Upgrade", "## Rollback"):
-        assert heading in readme
+    assert {"installation", "upgrade", "rollback"} <= _headings(readme)
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [Path("README.md"), Path("docs/releases/v1.0.0.md")],
+)
+def test_v1_upgrade_has_a_first_release_backup_and_restore_path(
+    relative_path: Path,
+) -> None:
+    document = (_ROOT / relative_path).read_text()
+    normalized = _normalized(document)
+
+    assert _HA_BACKUP_URL in document
+    assert _HACS_UPDATE_URL in document
+    assert "Settings > System > Backups" in normalized
+    for control in ("Backup now", "Manual backup", "Create backup"):
+        assert control in normalized
+    assert "Show all backups" in normalized
+    assert "Download backup" in normalized
+    assert "backup emergency kit" in normalized.casefold()
+    assert "`config`" in normalized
+    assert "config entries" in normalized
+    assert "Restore" in normalized
+    assert "higher patch" in normalized
+    for immutable_part in ("tag", "asset", "unchanged"):
+        assert immutable_part in normalized
+    assert any("install" in heading for heading in _headings(document))
+    assert any("upgrade" in heading for heading in _headings(document))
+    assert any("rollback" in heading for heading in _headings(document))
+
+
+def test_readme_states_detection_and_publication_as_separate_release_steps() -> None:
+    readme = _normalized((_ROOT / "README.md").read_text())
+
+    for contract_part in (
+        "every push to `main`",
+        "detect",
+        "publishes only",
+        "both version sources",
+        "increase together",
+    ):
+        assert contract_part in readme
