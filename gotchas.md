@@ -72,5 +72,6 @@
   auth, provider, connection, and device paths. Inject only at Cognito, fulfillment
   HTTP, and MQTT transport seams; prove cleanup through public state and seam events,
   never SDK private fields.
-- `git archive --prefix=gentex_place/ --add-file=LICENSE` puts the root MIT notice at
-  `gentex_place/LICENSE`, preserving one source of truth and the single-directory ZIP.
+- HACS `zip_release` extracts straight into `/config/custom_components/gentex_place`.
+  Its asset must put the tracked integration files and root `LICENSE` at the ZIP
+  root; a `gentex_place/` wrapper creates a broken nested install.
