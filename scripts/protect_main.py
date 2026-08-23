@@ -116,6 +116,31 @@ def _require_field(document: dict[str, Any], path: str, expected: object) -> Non
         raise ValueError(message)
 
 
+def _unique_check_pairs(value: object) -> set[tuple[str, int]] | None:
+    """Return valid unique app-bound check pairs, or reject the shape."""
+    if not isinstance(value, list):
+        return None
+    pairs: set[tuple[str, int]] = set()
+    for check in value:
+        if not isinstance(check, dict):
+            return None
+        context = check.get("context")
+        app_id = check.get("app_id")
+        if (
+            not isinstance(context, str)
+            or not context
+            or not isinstance(app_id, int)
+            or isinstance(app_id, bool)
+            or app_id <= 0
+        ):
+            return None
+        pair = (context, app_id)
+        if pair in pairs:
+            return None
+        pairs.add(pair)
+    return pairs
+
+
 def validate_protection(
     response: dict[str, Any],
     checks: list[dict[str, int | str]],
@@ -134,7 +159,16 @@ def validate_protection(
     ):
         message = "branch protection mismatch: required_status_checks.contexts"
         raise ValueError(message)
-    _require_field(response, "required_status_checks.checks", checks)
+    read_back_checks = _read_field(response, "required_status_checks.checks")
+    read_back_pairs = _unique_check_pairs(read_back_checks)
+    expected_pairs = _unique_check_pairs(checks)
+    if (
+        read_back_pairs is None
+        or expected_pairs is None
+        or read_back_pairs != expected_pairs
+    ):
+        message = "branch protection mismatch: required_status_checks.checks"
+        raise ValueError(message)
     _require_field(response, "enforce_admins.enabled", expected=True)
     reviews = _read_field(response, "required_pull_request_reviews")
     if not isinstance(reviews, dict):

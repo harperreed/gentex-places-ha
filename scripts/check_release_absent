@@ -69,9 +69,9 @@ if [ "$include_drafts" = "true" ]; then
     # GitHub lists drafts only to callers with push access; tag lookup is published-only.
     if matching_release=$(gh api --method GET \
         -H "X-GitHub-Api-Version: 2026-03-10" \
-        --paginate --slurp \
+        --paginate \
         "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-        --jq ".[][] | select(.tag_name == \"v$version\") | .tag_name"); then
+        --jq ".[] | select(.tag_name == \"v$version\") | .tag_name"); then
         :
     else
         fail "cannot prove release v$version is absent"

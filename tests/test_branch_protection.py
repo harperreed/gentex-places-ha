@@ -333,6 +333,56 @@ def test_validate_protection_accepts_reordered_status_contexts() -> None:
     validate_protection(response, _CHECKS)
 
 
+def test_validate_protection_accepts_reordered_app_bound_checks() -> None:
+    response = _protection_response()
+    response["required_status_checks"]["checks"] = [
+        deepcopy(_CHECKS[2]),
+        deepcopy(_CHECKS[0]),
+        deepcopy(_CHECKS[1]),
+    ]
+
+    validate_protection(response, _CHECKS)
+
+
+@pytest.mark.parametrize(
+    "read_back_checks",
+    [
+        pytest.param([], id="empty"),
+        pytest.param([*_CHECKS, {"context": "lint", "app_id": _APP_ID}], id="extra"),
+        pytest.param([*_CHECKS, deepcopy(_CHECKS[0])], id="duplicate"),
+        pytest.param([*_CHECKS[:2]], id="missing"),
+        pytest.param(
+            [{"context": "hacs", "app_id": 99999}, *_CHECKS[1:]],
+            id="wrong-app-id",
+        ),
+        pytest.param("hacs,hassfest,test", id="not-list"),
+        pytest.param([*_CHECKS[:2], "test"], id="non-object-item"),
+        pytest.param([*_CHECKS[:2], {"app_id": _APP_ID}], id="missing-context"),
+        pytest.param([*_CHECKS[:2], {"context": "test"}], id="missing-app-id"),
+        pytest.param(
+            [*_CHECKS[:2], {"context": 7, "app_id": _APP_ID}],
+            id="non-string-context",
+        ),
+        pytest.param(
+            [*_CHECKS[:2], {"context": "test", "app_id": True}],
+            id="boolean-app-id",
+        ),
+        pytest.param(
+            [*_CHECKS[:2], {"context": "test", "app_id": 0}],
+            id="nonpositive-app-id",
+        ),
+    ],
+)
+def test_validate_protection_rejects_invalid_app_bound_checks(
+    read_back_checks: object,
+) -> None:
+    response = _protection_response()
+    response["required_status_checks"]["checks"] = read_back_checks
+
+    with pytest.raises(ValueError, match=r"required_status_checks\.checks"):
+        validate_protection(response, _CHECKS)
+
+
 @pytest.mark.parametrize(
     "allowances",
     [

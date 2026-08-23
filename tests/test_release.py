@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +21,7 @@ from scripts.check_release import (
     detect_release,
     parse_version,
 )
+from tests.git_environment import isolated_git_environment
 
 _ROOT = Path(__file__).parents[1]
 _CHECKER = _ROOT / "scripts/check_release.py"
@@ -55,6 +58,7 @@ def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(  # noqa: S603 - fixed Git executable and test arguments
         ["git", *args],  # noqa: S607 - test exercises Git itself
         cwd=repo,
+        env=isolated_git_environment(),
         shell=False,
         check=True,
         capture_output=True,
@@ -74,6 +78,53 @@ def _init_repo(tmp_path: Path) -> tuple[Path, str]:
     _git(repo, "add", "pyproject.toml", str(_MANIFEST))
     _git(repo, "commit", "-m", "initial metadata")
     return repo, _git(repo, "rev-parse", "HEAD")
+
+
+def test_disposable_repository_ignores_ambient_global_hooks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hooks = tmp_path / "ambient-hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    marker = tmp_path / "ambient-hook-ran"
+    hook.write_text('#!/bin/sh\n: >"$AMBIENT_HOOK_MARKER"\n')
+    hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    global_config = tmp_path / "ambient-gitconfig"
+    global_config.write_text(f"[core]\n\thooksPath = {hooks}\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    monkeypatch.setenv("AMBIENT_HOOK_MARKER", str(marker))
+
+    _init_repo(tmp_path)
+
+    assert not marker.exists()
+
+
+def test_disposable_git_environment_disables_system_config_hooks_and_signing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "0")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "99")
+    monkeypatch.setenv("GIT_CONFIG_KEY_3", "include.path")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_3", "/ambient/config")
+    environment = isolated_git_environment()
+
+    assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert environment["GIT_CONFIG_COUNT"] == "3"
+    assert [
+        (
+            environment[f"GIT_CONFIG_KEY_{index}"],
+            environment[f"GIT_CONFIG_VALUE_{index}"],
+        )
+        for index in range(3)
+    ] == [
+        ("core.hooksPath", os.devnull),
+        ("commit.gpgsign", "false"),
+        ("tag.gpgsign", "false"),
+    ]
+    assert "GIT_CONFIG_KEY_3" not in environment
+    assert "GIT_CONFIG_VALUE_3" not in environment
 
 
 def _commit_bytes(repo: Path, path: Path, content: bytes) -> str:
@@ -161,6 +212,7 @@ def _assert_v1_hacs_lifecycle_contract(
         "upgrade section must include backup and HACS controls",
     )
     _require_document_contract(
+        # HACS cannot offer an in-repository rollback before the first release.
         re.search(
             r"`v1\.0\.0` is (?:this repository's|the) first release, so hacs has "
             r"no earlier (?:gentex place )?release to select",

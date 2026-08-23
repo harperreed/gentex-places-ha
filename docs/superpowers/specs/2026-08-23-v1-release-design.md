@@ -304,6 +304,10 @@ A failed draft is not a published release. Leave it intact until its cause is kn
 Recovery may require a maintainer to remove the draft and tag, but that destructive
 choice is outside the automated workflow and requires a separate, explicit decision.
 
+The release workflow serializes runs for the same Git ref and never cancels a run in
+progress. This closes the gap between the absence checks and draft creation without
+interrupting verification after a draft exists.
+
 If the live upgrade fails, preserve the Home Assistant logs and downloaded asset,
 restore the prior installed version through HACS, and fix the root cause in the next
 version. Never replace the public `v1.0.0` asset to make the failure disappear.

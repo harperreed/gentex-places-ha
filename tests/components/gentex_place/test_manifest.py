@@ -32,6 +32,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   detect:
     runs-on: ubuntu-latest
@@ -239,6 +243,8 @@ def test_release_workflow_publishes_only_a_verified_version_change() -> None:
     assert "push:\n    branches:\n      - main" in workflow
     assert "workflow_dispatch" not in workflow
     assert "permissions:\n  contents: read" in workflow
+    assert "group: release-${{ github.ref }}" in workflow
+    assert "cancel-in-progress: false" in workflow
     assert workflow.count("contents: write") == 1
     assert "if: needs.detect.outputs.release_required == 'true'" in workflow
     assert workflow.count("persist-credentials: false") == _RELEASE_CHECKOUT_COUNT
@@ -260,6 +266,16 @@ def test_release_workflow_publishes_only_a_verified_version_change() -> None:
         (
             "permissions:\n  contents: read",
             "permissions:\n  contents: read\n  issues: write",
+        ),
+        (
+            (
+                "concurrency:\n  group: release-${{ github.ref }}\n"
+                "  cancel-in-progress: false"
+            ),
+            (
+                "concurrency:\n  group: release-${{ github.ref }}\n"
+                "  cancel-in-progress: true"
+            ),
         ),
         (
             f"      - uses: {_CHECKOUT_ACTION}",
@@ -327,7 +343,8 @@ def test_release_scripts_fail_closed_and_verify_uploaded_assets() -> None:
     assert 'git ls-remote --exit-code --tags origin "refs/tags/v$version"' in absent
     assert "/repos/$GITHUB_REPOSITORY/releases/tags/v$version" in absent
     assert "--paginate" in absent
-    assert "--slurp" in absent
+    assert "--slurp" not in absent
+    assert '.[] | select(.tag_name == \\"v$version\\") | .tag_name' in absent
     assert '"repos/$GITHUB_REPOSITORY/releases?per_page=100"' in absent
     assert '"404"' in absent
     assert '"200"' in absent

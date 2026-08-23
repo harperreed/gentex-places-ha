@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from tests.git_environment import isolated_git_environment
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -60,6 +62,7 @@ def _tracked_members() -> dict[str, bytes]:
         cwd=_ROOT,
         check=True,
         capture_output=True,
+        env=isolated_git_environment(),
     )
     paths = [Path(raw.decode()) for raw in result.stdout.split(b"\0") if raw]
     members: dict[str, bytes] = {}
@@ -104,6 +107,7 @@ def _release_repository(tmp_path: Path, name: str = "repository") -> Path:
         ],
         check=True,
         capture_output=True,
+        env=isolated_git_environment(),
     )
     subprocess.run(
         [  # noqa: S607 - Git must resolve from the test environment
@@ -116,6 +120,7 @@ def _release_repository(tmp_path: Path, name: str = "repository") -> Path:
         cwd=root,
         check=True,
         capture_output=True,
+        env=isolated_git_environment(),
     )
     return root
 
@@ -463,11 +468,7 @@ def test_build_release_rejects_repository_swap_during_git_enumeration(
     with pytest.raises(ValueError, match="repository root changed"):
         build_release(root, archive)
 
-    if archive.exists():
-        with zipfile.ZipFile(archive) as release:
-            assert all(
-                release.read(name) != b"replacement" for name in release.namelist()
-            )
+    assert not archive.exists()
 
 
 def test_build_release_rejects_tracked_fifo_without_blocking(tmp_path: Path) -> None:

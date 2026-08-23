@@ -82,7 +82,11 @@ def _absence_environment(tmp_path: Path) -> tuple[dict[str, str], Path]:
         "#!/bin/sh\n"
         'printf \'%s\\n\' "$*" >>"$COMMAND_LOG"\n'
         '[ "${GH_API_STATUS:-0}" -eq 0 ] || exit "$GH_API_STATUS"\n'
-        "printf '%s' \"${GH_API_OUTPUT:-}\"\n",
+        '[ "$*" = "api --method GET -H X-GitHub-Api-Version: 2026-03-10 '
+        "--paginate repos/example/repository/releases?per_page=100 --jq "
+        '.[] | select(.tag_name == \\"v1.2.3\\") | .tag_name" ] || exit 91\n'
+        "printf '%s\\n' \"${GH_API_TAGS:-}\" | "
+        "awk -v target=\"v1.2.3\" '$0 == target { print }'\n",
     )
     env = _environment(bin_dir, temp_dir)
     env["COMMAND_LOG"] = str(command_log)
@@ -93,7 +97,7 @@ def test_write_preflight_finds_a_draft_on_any_paginated_release_page(
     tmp_path: Path,
 ) -> None:
     env, command_log = _absence_environment(tmp_path)
-    env["GH_API_OUTPUT"] = "v0.9.0\nv1.2.3\n"
+    env["GH_API_TAGS"] = "v0.9.0\nv1.2.3"
 
     result = subprocess.run(  # noqa: S603 - exact checked repository script
         [str(_ABSENCE_CHECK), "1.2.3", "--include-drafts"],
@@ -108,7 +112,8 @@ def test_write_preflight_finds_a_draft_on_any_paginated_release_page(
     assert result.stderr == "release v1.2.3 already exists\n"
     command = command_log.read_text()
     assert "--paginate" in command
-    assert "--slurp" in command
+    assert "--slurp" not in command
+    assert '.[] | select(.tag_name == "v1.2.3") | .tag_name' in command
     assert "repos/example/repository/releases?per_page=100" in command
 
 
@@ -116,7 +121,7 @@ def test_write_preflight_passes_only_after_all_release_pages_are_checked(
     tmp_path: Path,
 ) -> None:
     env, command_log = _absence_environment(tmp_path)
-    env["GH_API_OUTPUT"] = ""
+    env["GH_API_TAGS"] = "v0.9.0\nv1.2.30"
 
     result = subprocess.run(  # noqa: S603 - exact checked repository script
         [str(_ABSENCE_CHECK), "1.2.3", "--include-drafts"],
@@ -130,7 +135,10 @@ def test_write_preflight_passes_only_after_all_release_pages_are_checked(
     assert result.returncode == 0
     assert result.stdout == ""
     assert result.stderr == ""
-    assert "--paginate" in command_log.read_text()
+    command = command_log.read_text()
+    assert "--paginate" in command
+    assert "--slurp" not in command
+    assert '.[] | select(.tag_name == "v1.2.3") | .tag_name' in command
 
 
 def test_write_preflight_fails_closed_when_release_listing_fails(

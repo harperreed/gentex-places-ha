@@ -84,3 +84,7 @@
   checksum before the complete ZIP so a stale checksum cannot bless new ZIP bytes.
 - Harper Reed owns the repository and Home Shield copyright. Do not assign either
   copyright to Gentex; the MIT license and source notices must name Harper Reed.
+- GitHub CLI 2.96 rejects `gh api --paginate --slurp --jq`. Apply `.[]` to each
+  paginated release array without `--slurp`, and match the full tag name.
+- Disposable Git test repositories must ignore global/system config and override
+  hooks plus commit/tag signing; machine Git policy must not affect the test suite.
