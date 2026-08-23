@@ -53,7 +53,7 @@ jobs:
         run: uv run python scripts/check_release.py "$BEFORE_SHA" "$AFTER_SHA" """
     '--github-output "$GITHUB_OUTPUT"'
     """
-      - name: Refuse an existing tag or release
+      - name: Refuse an existing tag or published release
         if: steps.version.outputs.release_required == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,11 +81,11 @@ jobs:
         run: uv run python scripts/check_release.py "$BEFORE_SHA" "$AFTER_SHA" """
     "--require-release"
     """
-      - name: Refuse a raced tag or release
+      - name: Refuse a raced tag or any release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.detect.outputs.version }}
-        run: scripts/check_release_absent "$RELEASE_VERSION"
+        run: scripts/check_release_absent "$RELEASE_VERSION" --include-drafts
       - name: Build release assets
         run: uv run python scripts/build_release.py --output dist/gentex_place.zip
       - name: Create draft release
@@ -229,6 +229,9 @@ def test_release_workflow_publishes_only_a_verified_version_change() -> None:
     assert "scripts/build_release.py" in workflow
     assert "--draft" in workflow
     assert "scripts/verify_draft_release" in workflow
+    detect, publish = workflow.split("  publish:\n", maxsplit=1)
+    assert "--include-drafts" not in detect
+    assert publish.count("--include-drafts") == 1
     assert "--draft=false" in workflow
     assert "gh release delete" not in workflow
     assert "gh release upload --clobber" not in workflow
@@ -306,6 +309,9 @@ def test_release_scripts_fail_closed_and_verify_uploaded_assets() -> None:
 
     assert 'git ls-remote --exit-code --tags origin "refs/tags/v$version"' in absent
     assert "/repos/$GITHUB_REPOSITORY/releases/tags/v$version" in absent
+    assert "--paginate" in absent
+    assert "--slurp" in absent
+    assert '"repos/$GITHUB_REPOSITORY/releases?per_page=100"' in absent
     assert '"404"' in absent
     assert '"200"' in absent
 
@@ -316,7 +322,7 @@ def test_release_scripts_fail_closed_and_verify_uploaded_assets() -> None:
     assert (
         'scripts/build_release.py --verify "$download_dir/gentex_place.zip"' in verify
     )
-    assert "--json isDraft --jq .isDraft" in verify
+    assert "--json isDraft,assets" in verify
     assert '"repos/$GITHUB_REPOSITORY/git/ref/tags/v$version"' in verify
 
 
