@@ -117,8 +117,16 @@ def _section(document: str, heading_keyword: str) -> str:
         document,
         flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
     )
-    assert section is not None
+    if section is None:
+        msg = f"missing level-two Markdown section: {heading_keyword.casefold()}"
+        raise AssertionError(msg)
     return _normalized(section.group("body")).casefold()
+
+
+def _require_document_contract(condition: object, message: str) -> None:
+    """Raise one stable failure for a missing documentation contract."""
+    if not condition:
+        raise AssertionError(message)
 
 
 def _assert_v1_hacs_lifecycle_contract(
@@ -131,38 +139,60 @@ def _assert_v1_hacs_lifecycle_contract(
     upgrade = _section(document, "upgrade")
     rollback = _section(document, "rollback")
 
-    assert re.search(
-        r"choose \*\*custom repositories\*\*.*"
-        r"with the type \*\*integration\*\*.*"
-        r"choose \*\*download\*\*.*"
-        r"under \*\*need a different version\?\*\*.*"
-        r"choose \*\*download\*\*",
-        install,
+    _require_document_contract(
+        re.search(
+            r"choose \*\*custom repositories\*\*.*"
+            r"with the type \*\*integration\*\*.*"
+            r"choose \*\*download\*\*.*"
+            r"under \*\*need a different version\?\*\*.*"
+            r"choose \*\*download\*\*",
+            install,
+        ),
+        "install section must include ordered HACS install controls",
     )
-    assert re.search(
-        r"\*\*download backup\*\*.*"
-        r"\*\*redownload\*\*.*"
-        r"\*\*need a different version\?\*\*.*"
-        r"\*\*download\*\*",
-        upgrade,
+    _require_document_contract(
+        re.search(
+            r"\*\*download backup\*\*.*"
+            r"\*\*redownload\*\*.*"
+            r"\*\*need a different version\?\*\*.*"
+            r"\*\*download\*\*",
+            upgrade,
+        ),
+        "upgrade section must include backup and HACS controls",
     )
-    assert re.search(
-        r"`v1\.0\.0` is (?:this repository's|the) first release, so hacs has "
-        r"no earlier (?:gentex place )?release to select",
-        rollback,
+    _require_document_contract(
+        re.search(
+            r"`v1\.0\.0` is (?:this repository's|the) first release, so hacs has "
+            r"no earlier (?:gentex place )?release to select",
+            rollback,
+        ),
+        "rollback section must state v1.0.0 has no earlier release",
     )
-    assert (
-        "off-device **download backup** copy remains available for wider "
-        "home assistant recovery"
-    ) in rollback
-    assert re.search(
-        r"for (?:releases after `v1\.0\.0`|later releases), hacs "
-        r"\*\*redownload\*\* (?:can select|may offer) an earlier published "
-        r"version under \*\*need a different version\?\*\*",
-        rollback,
+    _require_document_contract(
+        (
+            "off-device **download backup** copy remains available for wider "
+            "home assistant recovery"
+        )
+        in rollback,
+        "rollback section must retain the off-device backup",
     )
-    assert immutable_rule.casefold() in rollback
-    assert "end-to-end" not in _normalized(document).casefold()
+    _require_document_contract(
+        re.search(
+            r"for (?:releases after `v1\.0\.0`|later releases), hacs "
+            r"\*\*redownload\*\* (?:can select|may offer) an earlier published "
+            r"version under \*\*need a different version\?\*\*",
+            rollback,
+        ),
+        "rollback section must distinguish later-version selection",
+    )
+    _require_document_contract(
+        immutable_rule.casefold() in rollback,
+        "rollback section must preserve published tags and assets",
+    )
+    _require_document_contract(
+        "end-to-end" not in _normalized(document).casefold(),
+        "documentation must not claim HACS end-to-end coverage",
+    )
 
 
 def test_section_includes_nested_markdown_headings() -> None:
@@ -175,6 +205,21 @@ Next
 """
 
     assert _section(document, "install") == "before ### detail after"
+
+
+def test_flattened_document_reports_section_failure_not_contract_mutation() -> None:
+    relative_path, immutable_rule = _V1_DOCUMENT_CONTRACTS[0]
+    document = (_ROOT / relative_path).read_text()
+    _assert_v1_hacs_lifecycle_contract(document, immutable_rule=immutable_rule)
+
+    with pytest.raises(
+        AssertionError,
+        match=r"^missing level-two Markdown section: install$",
+    ):
+        _assert_v1_hacs_lifecycle_contract(
+            _normalized(document),
+            immutable_rule=immutable_rule,
+        )
 
 
 @pytest.mark.parametrize("value", ["v1.0.0", "1.0", "1.0.0-rc1", "1.0.0+1", "01.0.0"])
@@ -426,16 +471,48 @@ def test_v1_hacs_lifecycle_contract(
 
 @pytest.mark.parametrize(("relative_path", "immutable_rule"), _V1_DOCUMENT_CONTRACTS)
 @pytest.mark.parametrize(
-    ("required", "replacement"),
+    ("required", "replacement", "expected_failure"),
     [
-        ("Custom repositories", "Repository settings"),
-        ("**Integration**", "**Plugin**"),
-        ("**Download**", "**Fetch**"),
-        ("**Redownload**", "**Reinstall**"),
-        ("**Need a different version?**", "**Choose version**"),
-        ("no earlier", "an earlier"),
-        ("**Download backup**", "**Keep backup**"),
-        ("earlier published version", "current published version"),
+        (
+            "Custom repositories",
+            "Repository settings",
+            "install section must include ordered HACS install controls",
+        ),
+        (
+            "**Integration**",
+            "**Plugin**",
+            "install section must include ordered HACS install controls",
+        ),
+        (
+            "**Download**",
+            "**Fetch**",
+            "install section must include ordered HACS install controls",
+        ),
+        (
+            "**Redownload**",
+            "**Reinstall**",
+            "upgrade section must include backup and HACS controls",
+        ),
+        (
+            "**Need a different version?**",
+            "**Choose version**",
+            "install section must include ordered HACS install controls",
+        ),
+        (
+            "no earlier",
+            "an earlier",
+            "rollback section must state v1.0.0 has no earlier release",
+        ),
+        (
+            "**Download backup**",
+            "**Keep backup**",
+            "upgrade section must include backup and HACS controls",
+        ),
+        (
+            "earlier published version",
+            "current published version",
+            "rollback section must distinguish later-version selection",
+        ),
     ],
 )
 def test_v1_hacs_lifecycle_contract_rejects_missing_guidance(
@@ -443,12 +520,24 @@ def test_v1_hacs_lifecycle_contract_rejects_missing_guidance(
     immutable_rule: str,
     required: str,
     replacement: str,
+    expected_failure: str,
 ) -> None:
-    document = _normalized((_ROOT / relative_path).read_text())
-    mutated = document.replace(required, replacement)
-    assert mutated != document
+    document = (_ROOT / relative_path).read_text()
+    _assert_v1_hacs_lifecycle_contract(document, immutable_rule=immutable_rule)
 
-    with pytest.raises(AssertionError):
+    required_pattern = re.escape(required).replace(r"\ ", r"\s+")
+    mutated, replacements = re.subn(
+        required_pattern,
+        replacement,
+        document,
+        flags=re.IGNORECASE,
+    )
+    assert replacements > 0
+
+    with pytest.raises(
+        AssertionError,
+        match=rf"^{re.escape(expected_failure)}$",
+    ):
         _assert_v1_hacs_lifecycle_contract(mutated, immutable_rule=immutable_rule)
 
 
@@ -458,18 +547,21 @@ def test_v1_hacs_lifecycle_contract_rejects_mutable_release_guidance(
     immutable_rule: str,
 ) -> None:
     document = (_ROOT / relative_path).read_text()
-    normalized_rule = immutable_rule.casefold()
-    mutated = (
-        _normalized(document)
-        .casefold()
-        .replace(
-            normalized_rule,
-            "published release files may be replaced",
-        )
-    )
-    assert mutated != _normalized(document).casefold()
+    _assert_v1_hacs_lifecycle_contract(document, immutable_rule=immutable_rule)
 
-    with pytest.raises(AssertionError):
+    immutable_pattern = re.escape(immutable_rule).replace(r"\ ", r"\s+")
+    mutated, replacements = re.subn(
+        immutable_pattern,
+        "published release files may be replaced",
+        document,
+        flags=re.IGNORECASE,
+    )
+    assert replacements == 1
+
+    with pytest.raises(
+        AssertionError,
+        match=r"^rollback section must preserve published tags and assets$",
+    ):
         _assert_v1_hacs_lifecycle_contract(mutated, immutable_rule=immutable_rule)
 
 
