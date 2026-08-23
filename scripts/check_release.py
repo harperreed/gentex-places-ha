@@ -63,15 +63,19 @@ def decide_release(
     )
 
 
-def _show_file(commit: str, path: str, root: Path) -> str:
+def _show_file(commit: str, path: str, root: Path) -> bytes:
     """Read a repository file at one Git commit."""
     result = subprocess.run(  # noqa: S603 - fixed Git command, no shell
-        ["git", "show", f"{commit}:{path}"],  # noqa: S607 - required Git lookup
+        [  # noqa: S607 - required Git lookup
+            "git",
+            "show",
+            "--end-of-options",
+            f"{commit}:{path}",
+        ],
         cwd=root,
         shell=False,
         check=True,
         capture_output=True,
-        text=True,
     )
     return result.stdout
 
@@ -79,8 +83,10 @@ def _show_file(commit: str, path: str, root: Path) -> str:
 def _read_metadata(commit: str, root: Path) -> tuple[str, str]:
     """Read matching project and manifest version sources from a Git commit."""
     try:
-        project = tomllib.loads(_show_file(commit, "pyproject.toml", root))
-        manifest = json.loads(_show_file(commit, _MANIFEST_PATH, root))
+        project = tomllib.loads(
+            _show_file(commit, "pyproject.toml", root).decode("utf-8")
+        )
+        manifest = json.loads(_show_file(commit, _MANIFEST_PATH, root).decode("utf-8"))
         project_version = project["project"]["version"]
         manifest_version = manifest["version"]
     except (
@@ -90,6 +96,7 @@ def _read_metadata(commit: str, root: Path) -> tuple[str, str]:
         subprocess.CalledProcessError,
         tomllib.TOMLDecodeError,
         TypeError,
+        UnicodeDecodeError,
     ):
         pass
     else:
