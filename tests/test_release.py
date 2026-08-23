@@ -472,11 +472,32 @@ def test_v1_release_notes_cover_the_public_distribution_contract() -> None:
     assert "end-to-end" not in normalized_notes.casefold()
 
 
+def test_v1_0_1_release_notes_cover_the_metadata_patch_contract() -> None:
+    notes_path = _ROOT / "docs/releases/v1.0.1.md"
+
+    assert notes_path.is_file()
+    notes = notes_path.read_text()
+    for required in (
+        "# Gentex PLACE v1.0.1",
+        "metadata-only",
+        "v1.0.0",
+        "HACS",
+        "Redownload",
+        "restart Home Assistant",
+        "gentex_place.zip",
+        "gentex_place.zip.sha256",
+        "Integration behavior and dependency pins are unchanged.",
+    ):
+        assert required in notes
+
+
 def test_readme_covers_v1_install_upgrade_and_rollback() -> None:
     readme = (_ROOT / "README.md").read_text()
     normalized_readme = _normalized(readme)
     release_language = normalized_readme.casefold()
 
+    assert "v1.0.1" in _section(readme, "installation")
+    assert "v1.0.1" in _section(readme, "upgrade")
     assert "`v1.0.0` is the first stable version" in release_language
     assert f"{_REPOSITORY_URL}/releases" in readme
     assert "before publication" in release_language

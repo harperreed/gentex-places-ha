@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/harperreed/gentex-places-ha/issues",
   "loggers": ["place"],
   "requirements": ["place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631"],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
