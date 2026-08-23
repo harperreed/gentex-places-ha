@@ -92,6 +92,8 @@ def test_manifest_and_project_share_the_git_sdk_requirement() -> None:
     assert manifest["iot_class"] == "cloud_push"
     assert manifest["loggers"] == ["place"]
     assert hacs["homeassistant"] == "2026.8.1"
+    assert hacs["zip_release"] is True
+    assert hacs["filename"] == "gentex_place.zip"
     assert (
         len([path for path in (_ROOT / "custom_components").iterdir() if path.is_dir()])
         == 1

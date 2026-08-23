@@ -1,4 +1,6 @@
 {
   "name": "Gentex PLACE",
-  "homeassistant": "2026.8.1"
+  "homeassistant": "2026.8.1",
+  "zip_release": true,
+  "filename": "gentex_place.zip"
 }

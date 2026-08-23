@@ -25,10 +25,16 @@ fail() {
 }
 
 : >"$log_file"
-mkdir -p "$package_root/custom_components" "$package_root/tests/system" \
+mkdir -p "$test_root/release" "$package_root/custom_components/gentex_place" \
+    "$package_root/tests/system" \
     >>"$log_file" 2>&1 || fail "$?"
-cp -R "$source_root/custom_components/gentex_place" \
-    "$package_root/custom_components/" >>"$log_file" 2>&1 || fail "$?"
+uv run python "$source_root/scripts/build_release.py" \
+    --root "$source_root" \
+    --output "$test_root/release/gentex_place.zip" \
+    >>"$log_file" 2>&1 || fail "$?"
+uv run python -m zipfile -e "$test_root/release/gentex_place.zip" \
+    "$package_root/custom_components/gentex_place" \
+    >>"$log_file" 2>&1 || fail "$?"
 cp "$source_root/tests/system/entity_contract.py" "$package_root/tests/system/" \
     >>"$log_file" 2>&1 || fail "$?"
 cp "$source_root/tests/system/test_descriptions.py" "$package_root/tests/system/" \
