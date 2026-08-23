@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Tests the narrow cryptography audit exception as a subprocess contract.
 # ABOUTME: Any package, version, or finding drift must fail the repository gate.
 """Dependency-audit exception contract tests."""

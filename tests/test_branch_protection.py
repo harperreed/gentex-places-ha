@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies trusted GitHub checks and the protected-main policy contract.
 # ABOUTME: Keeps branch protection strict, app-bound, and safe to read back.
 """Tests for the protected-main policy."""

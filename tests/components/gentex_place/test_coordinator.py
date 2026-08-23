@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies PLACE push updates, liveness, motion, and fixed health timing.
 # ABOUTME: Tests advance Home Assistant timers directly and never wait on wall time.
 """Tests for the Gentex PLACE runtime coordinator."""

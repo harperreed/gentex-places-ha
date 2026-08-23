@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Exposes binary alarms and live status for Gentex PLACE devices.
 # ABOUTME: Includes account connectivity and shared alarm metadata for sensors.
 """Binary-sensor platform for Gentex PLACE."""

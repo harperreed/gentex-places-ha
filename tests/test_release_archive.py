@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies deterministic, root-level HACS release archives and checksums.
 # ABOUTME: Rejects unsafe or inexact ZIP members before packaging reaches users.
 """Release archive build and verification tests."""

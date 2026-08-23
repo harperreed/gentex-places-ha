@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Runs an opt-in read-only PLACE account release check outside CI.
 # ABOUTME: Prints counts and connection state only; it never captures identifiers or payloads.
 # ruff: noqa: E501, INP001

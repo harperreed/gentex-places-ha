@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Detects stable release version changes across two Git revisions.
 # ABOUTME: Rejects inconsistent metadata before release automation can proceed.
 # ruff: noqa: INP001 - repository scripts are importable test targets without a package

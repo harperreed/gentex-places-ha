@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies config-entry startup, typed setup failures, and clean unload.
 # ABOUTME: Runtime tests use hand-written SDK fakes and no live account calls.
 """Tests for the Gentex PLACE config-entry lifecycle."""

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Shared Gentex PLACE keys, safe account labels, platforms, and timers.
 # ABOUTME: Protocol field names remain in the standalone PLACE SDK.
 """Constants for the Gentex PLACE integration."""

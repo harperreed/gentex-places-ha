@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Adapts Home Assistant config entries to the PLACE SDK auth interfaces.
 # ABOUTME: Persists safe token data and builds clients with Home Assistant's session.
 """Authentication and token-cache adapters for Gentex PLACE."""

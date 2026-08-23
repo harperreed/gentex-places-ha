@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Defines the complete entity key contract used by packaged system tests.
 # ABOUTME: Unit checks keep this test support synchronized with production descriptions.
 """Shared expected entity keys for the packaged Gentex PLACE scenario."""

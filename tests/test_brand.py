@@ -1,8 +1,9 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies the original Home Shield source, provenance, and PNG exports.
 # ABOUTME: Keeps Home Assistant and HACS brand assets licensed and dimensionally exact.
 """Brand asset contract tests."""
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -35,3 +36,27 @@ def test_brand_source_and_provenance_are_project_owned() -> None:
     assert "August 23, 2026" in provenance
     assert "does not incorporate third-party artwork" in provenance
     assert "MIT License" in provenance
+
+
+def test_copyright_belongs_to_harper_reed() -> None:
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],  # noqa: S607 - repository-local Git query
+        cwd=_ROOT,
+        check=True,
+        capture_output=True,
+        shell=False,
+    ).stdout.split(b"\0")
+    forbidden = b"Copyright (c) 2026 " + b"Gentex"
+
+    assert (_ROOT / "LICENSE").read_text().splitlines()[0] == (
+        "Copyright (c) 2026 Harper Reed"
+    )
+    assert (
+        "`Copyright (c) 2026 Harper Reed`"
+        in (_ROOT / "docs/brand-provenance.md").read_text()
+    )
+    assert all(
+        forbidden not in (_ROOT / relative.decode()).read_bytes()
+        for relative in tracked
+        if relative
+    )

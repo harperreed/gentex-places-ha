@@ -82,3 +82,5 @@
 - Snapshot every tracked release source before touching output. Reject ZIP/checksum
   symlinks and source aliases, verify fresh same-directory stages, then replace the
   checksum before the complete ZIP so a stale checksum cannot bless new ZIP bytes.
+- Harper Reed owns the repository and Home Shield copyright. Do not assign either
+  copyright to Gentex; the MIT license and source notices must name Harper Reed.

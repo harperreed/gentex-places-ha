@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies packaged-runner setup failures stop and preserve useful logs.
 # ABOUTME: Uses a controlled executable boundary while exercising the real POSIX shell.
 """Shell lifecycle tests for the isolated packaged-system runner."""

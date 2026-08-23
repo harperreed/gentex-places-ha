@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Defines the Gentex PLACE Home Assistant integration package.
 # ABOUTME: Loads config entries and owns their typed PLACE runtime lifecycle.
 """The Gentex PLACE Home Assistant integration."""

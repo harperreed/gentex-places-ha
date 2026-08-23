@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Defines shared PLACE entity identity, metadata, and availability.
 # ABOUTME: Registry identifiers include the account so entries cannot collide.
 """Shared entity bases for Gentex PLACE."""

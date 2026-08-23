@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Builds deterministic root-level HACS archives and SHA-256 checksums.
 # ABOUTME: Verifies archive paths and bytes against the release source tree.
 # ruff: noqa: INP001 - repository scripts are importable test targets without a package

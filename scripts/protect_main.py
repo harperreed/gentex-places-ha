@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Builds and verifies the exact GitHub protection policy for main.
 # ABOUTME: Trusts only successful required checks from one GitHub Actions app.
 # ruff: noqa: INP001 - repository scripts are importable test targets without a package

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies the installed PLACE SDK exports every symbol the integration uses.
 # ABOUTME: Runs unchanged under both direct and locked clean-install interpreters.
 # ruff: noqa: F401, INP001

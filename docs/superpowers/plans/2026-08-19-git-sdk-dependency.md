@@ -136,7 +136,7 @@ canonical uv lock representation follow-up
 Create `tests/components/gentex_place/test_manifest.py`:
 
 ```python
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies Home Assistant metadata and the immutable public SDK source.
 # ABOUTME: Keeps manifest, project, and lock dependency contracts in agreement.
 """Repository metadata contract tests for the Gentex PLACE integration."""

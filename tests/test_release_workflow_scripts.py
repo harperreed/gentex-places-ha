@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Exercises release preflight and draft verification as real shell processes.
 # ABOUTME: Covers strict versions, draft pagination, signals, and exact uploaded assets.
 """Behavioral tests for the release workflow's POSIX helpers."""

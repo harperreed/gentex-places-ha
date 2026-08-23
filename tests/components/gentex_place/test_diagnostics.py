@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies PLACE diagnostics use a strict privacy-preserving allow list.
 # ABOUTME: Canary tests cover diagnostics and meaningful setup/coordinator logs.
 """Tests for Gentex PLACE diagnostics and log privacy."""

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Enables Home Assistant's custom-integration pytest fixtures and loader.
 # ABOUTME: Shared Gentex PLACE fixtures live under the component test package.
 """Shared pytest configuration for the Gentex PLACE integration."""

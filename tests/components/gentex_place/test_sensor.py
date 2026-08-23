@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies all PLACE numeric telemetry sensor contracts and live updates.
 # ABOUTME: Tests preserve raw SDK values and exercise real Home Assistant states.
 """Tests for Gentex PLACE numeric telemetry sensors."""

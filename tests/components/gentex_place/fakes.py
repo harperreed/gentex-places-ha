@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Provides stateful PLACE SDK fakes for config-flow behavior tests.
 # ABOUTME: Secret call values are hashed so test diagnostics cannot expose them.
 """Stateful test doubles for the public PLACE SDK interfaces."""

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Checks that packaged expectations cover every production entity description.
 # ABOUTME: Prevents the isolated registry scenario from drifting as entities change.
 """Entity-description completeness checks for packaged test support."""

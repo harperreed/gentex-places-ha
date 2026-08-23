@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies stable release decisions across repository metadata revisions.
 # ABOUTME: Keeps release automation tied to matching, increasing semantic versions.
 """Tests for release-change detection and artifact packaging."""

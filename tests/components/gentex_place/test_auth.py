@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies config-entry refresh-token persistence and auth factories.
 # ABOUTME: Passwords and short-lived cloud credentials must never enter entry data.
 """Tests for token persistence and SDK factory construction."""

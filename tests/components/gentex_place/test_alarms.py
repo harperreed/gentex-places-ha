@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies all PLACE safety alarm binary and enum sensor contracts.
 # ABOUTME: Loaded-entry tests exercise real Home Assistant state and registry paths.
 """Tests for Gentex PLACE safety alarm entities."""

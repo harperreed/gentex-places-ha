@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Coordinates PLACE client startup, push state, health, and motion timing.
 # ABOUTME: The SDK device registry remains the single source of device state.
 """Runtime coordinator for Gentex PLACE accounts."""
