@@ -12,7 +12,9 @@ import hashlib
 import os
 import stat
 import subprocess
+import tempfile
 import zipfile
+from contextlib import suppress
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 _ROOT = Path(__file__).parents[1]
@@ -64,8 +66,12 @@ def _open_root(root: Path) -> int:
         raise ValueError(message) from None
 
 
-def _read_source(root_descriptor: int, name: str, relative: Path) -> bytes:
-    """Snapshot one tracked regular file through no-follow descriptors."""
+def _read_source_entry(
+    root_descriptor: int,
+    name: str,
+    relative: Path,
+) -> tuple[bytes, tuple[int, int]]:
+    """Snapshot one tracked regular file and its filesystem identity."""
     directory_descriptor = os.dup(root_descriptor)
     try:
         for index, part in enumerate(relative.parts[:-1], start=1):
@@ -106,16 +112,24 @@ def _read_source(root_descriptor: int, name: str, relative: Path) -> bytes:
     finally:
         os.close(directory_descriptor)
 
-    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+    source_status = os.fstat(descriptor)
+    if not stat.S_ISREG(source_status.st_mode):
         os.close(descriptor)
         message = f"tracked release member is not a regular file: {name}"
         raise ValueError(message)
     with os.fdopen(descriptor, "rb") as source_file:
-        return source_file.read()
+        return source_file.read(), (source_status.st_dev, source_status.st_ino)
 
 
-def _archive_files(root: Path) -> list[tuple[str, bytes]]:
-    """Snapshot exact tracked regular files for one release operation."""
+def _read_source(root_descriptor: int, name: str, relative: Path) -> bytes:
+    """Snapshot one tracked regular file through no-follow descriptors."""
+    return _read_source_entry(root_descriptor, name, relative)[0]
+
+
+def _archive_snapshot(
+    root: Path,
+) -> tuple[list[tuple[str, bytes]], frozenset[tuple[int, int]]]:
+    """Snapshot exact tracked files and the identities they occupied."""
     root_descriptor = _open_root(root)
     try:
         root_status = os.fstat(root_descriptor)
@@ -132,12 +146,20 @@ def _archive_files(root: Path) -> list[tuple[str, bytes]]:
         ):
             message = "release repository root changed during tracked-file enumeration"
             raise ValueError(message)
-        return [
-            (name, _read_source(root_descriptor, name, relative))
+        entries = [
+            (name, *_read_source_entry(root_descriptor, name, relative))
             for name, relative in tracked
         ]
+        files = [(name, source_bytes) for name, source_bytes, _ in entries]
+        identities = frozenset(identity for _, _, identity in entries)
+        return files, identities
     finally:
         os.close(root_descriptor)
+
+
+def _archive_files(root: Path) -> list[tuple[str, bytes]]:
+    """Snapshot exact tracked regular files for one release operation."""
+    return _archive_snapshot(root)[0]
 
 
 def _validate_member(info: zipfile.ZipInfo) -> None:
@@ -181,9 +203,8 @@ def _validate_metadata(info: zipfile.ZipInfo) -> None:
         raise ValueError(message)
 
 
-def verify_release(root: Path, archive: Path) -> None:
-    """Verify that an archive contains only exact, safe release source bytes."""
-    expected = dict(_archive_files(root))
+def _verify_archive(archive: Path, expected: dict[str, bytes]) -> None:
+    """Verify one archive against an already captured source snapshot."""
     with zipfile.ZipFile(archive) as release:
         infos = release.infolist()
         names = [info.filename for info in infos]
@@ -214,20 +235,103 @@ def verify_release(root: Path, archive: Path) -> None:
                 raise ValueError(message)
 
 
+def verify_release(root: Path, archive: Path) -> None:
+    """Verify that an archive contains only exact, safe release source bytes."""
+    _verify_archive(archive, dict(_archive_files(root)))
+
+
+def _validate_final_paths(
+    output: Path,
+    checksum: Path,
+    source_identities: frozenset[tuple[int, int]],
+) -> None:
+    """Reject unsafe final paths without following their final components."""
+    identities: list[tuple[int, int]] = []
+    for final_path in (output, checksum):
+        try:
+            final_status = final_path.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(final_status.st_mode):
+            message = f"release output path is a symlink: {final_path}"
+            raise ValueError(message)
+        if not stat.S_ISREG(final_status.st_mode):
+            message = f"release output path is not a regular file: {final_path}"
+            raise ValueError(message)
+        identity = (final_status.st_dev, final_status.st_ino)
+        if identity in source_identities:
+            message = (
+                f"release output path aliases tracked release source: {final_path}"
+            )
+            raise ValueError(message)
+        identities.append(identity)
+    if len(identities) != len(set(identities)):
+        message = "release archive and checksum paths alias the same file"
+        raise ValueError(message)
+
+
+def _new_stage(parent: Path, final_name: str) -> tuple[int, Path]:
+    """Create one private staging file beside its final destination."""
+    descriptor, raw_path = tempfile.mkstemp(
+        prefix=f".{final_name}.",
+        suffix=".tmp",
+        dir=parent,
+    )
+    return descriptor, Path(raw_path)
+
+
+def _remove_stage(stage: Path | None) -> None:
+    """Remove only a staging path created by this process."""
+    if stage is not None:
+        with suppress(FileNotFoundError):
+            stage.unlink()
+
+
 def build_release(root: Path, output: Path) -> Path:
     """Build, verify, and checksum one deterministic HACS release archive."""
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
-        for name, source_bytes in _archive_files(root):
-            info = zipfile.ZipInfo(name, _ARCHIVE_TIME)
-            info.compress_type = zipfile.ZIP_STORED
-            info.external_attr = _FILE_MODE
-            info.create_system = _ZIP_SYSTEM
-            archive.writestr(info, source_bytes)
-    verify_release(root, output)
-    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    files, source_identities = _archive_snapshot(root)
+    expected = dict(files)
     checksum = output.with_suffix(output.suffix + ".sha256")
-    checksum.write_text(f"{digest}  {output.name}\n")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    _validate_final_paths(output, checksum, source_identities)
+    staged_archive: Path | None = None
+    staged_checksum: Path | None = None
+    try:
+        archive_descriptor, staged_archive = _new_stage(output.parent, output.name)
+        with os.fdopen(archive_descriptor, "w+b") as archive_file:
+            with zipfile.ZipFile(
+                archive_file,
+                "w",
+                compression=zipfile.ZIP_STORED,
+            ) as archive:
+                for name, source_bytes in files:
+                    info = zipfile.ZipInfo(name, _ARCHIVE_TIME)
+                    info.compress_type = zipfile.ZIP_STORED
+                    info.external_attr = _FILE_MODE
+                    info.create_system = _ZIP_SYSTEM
+                    archive.writestr(info, source_bytes)
+            archive_file.flush()
+            os.fsync(archive_file.fileno())
+        _verify_archive(staged_archive, expected)
+        digest = hashlib.sha256(staged_archive.read_bytes()).hexdigest()
+
+        checksum_descriptor, staged_checksum = _new_stage(
+            output.parent,
+            checksum.name,
+        )
+        with os.fdopen(checksum_descriptor, "w", encoding="utf-8") as checksum_file:
+            checksum_file.write(f"{digest}  {output.name}\n")
+            checksum_file.flush()
+            os.fsync(checksum_file.fileno())
+
+        _validate_final_paths(output, checksum, source_identities)
+        staged_checksum.replace(checksum)
+        staged_checksum = None
+        staged_archive.replace(output)
+        staged_archive = None
+    finally:
+        _remove_stage(staged_checksum)
+        _remove_stage(staged_archive)
     return checksum
 
 

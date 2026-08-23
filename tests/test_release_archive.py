@@ -178,6 +178,79 @@ def test_build_release_rejects_missing_tracked_member(tmp_path: Path) -> None:
         build_release(root, tmp_path / "gentex_place.zip")
 
 
+def test_build_release_snapshots_sources_before_creating_output_directory(
+    tmp_path: Path,
+) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    (root / "custom_components/gentex_place/manifest.json").unlink()
+    output = tmp_path / "publish/gentex_place.zip"
+
+    with pytest.raises(ValueError, match="tracked release member is missing"):
+        build_release(root, output)
+
+    assert not output.parent.exists()
+
+
+@pytest.mark.parametrize("alias", ["archive", "checksum"])
+def test_build_release_rejects_final_file_hard_linked_to_tracked_source(
+    tmp_path: Path,
+    alias: str,
+) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    source = root / "LICENSE"
+    original = source.read_bytes()
+    output = tmp_path / "gentex_place.zip"
+    checksum = output.with_suffix(".zip.sha256")
+    os.link(source, output if alias == "archive" else checksum)
+
+    with pytest.raises(ValueError, match="aliases tracked release source"):
+        build_release(root, output)
+
+    assert source.read_bytes() == original
+    assert (output if alias == "archive" else checksum).read_bytes() == original
+
+
+@pytest.mark.parametrize("target", ["archive", "checksum"])
+def test_build_release_rejects_symlinked_final_file_without_touching_target(
+    tmp_path: Path,
+    target: str,
+) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    victim = tmp_path / "victim"
+    victim.write_bytes(b"keep me")
+    output = tmp_path / "gentex_place.zip"
+    checksum = output.with_suffix(".zip.sha256")
+    (output if target == "archive" else checksum).symlink_to(victim)
+
+    with pytest.raises(ValueError, match="release output path is a symlink"):
+        build_release(root, output)
+
+    assert victim.read_bytes() == b"keep me"
+    assert (output if target == "archive" else checksum).is_symlink()
+
+
+def test_build_release_preserves_previous_final_files_when_source_snapshot_fails(
+    tmp_path: Path,
+) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    output = tmp_path / "gentex_place.zip"
+    checksum = output.with_suffix(".zip.sha256")
+    output.write_bytes(b"previous archive")
+    checksum.write_bytes(b"previous checksum")
+    (root / "custom_components/gentex_place/manifest.json").unlink()
+
+    with pytest.raises(ValueError, match="tracked release member is missing"):
+        build_release(root, output)
+
+    assert output.read_bytes() == b"previous archive"
+    assert checksum.read_bytes() == b"previous checksum"
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
 @pytest.mark.parametrize(
     ("name", "mode", "message"),
     [

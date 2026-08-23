@@ -177,6 +177,20 @@ used by the workflow, inspect every member, reject absolute paths, parent traver
 symlinks, and wrapped paths, and compare the archived license and integration files
 with their tracked sources.
 
+The builder will snapshot every tracked source through no-follow file descriptors
+before it creates an output directory or touches a final asset. It will reject a
+ZIP or checksum path that is a symlink, a non-regular file, an alias of a tracked
+source, or an alias of the other final asset. It will write both assets to fresh
+files in the destination directory, verify the staged ZIP against the captured
+snapshot, and only then replace final paths.
+
+A filesystem cannot replace the ZIP and checksum as one atomic pair. Publication
+therefore replaces the checksum first and the ZIP second. Before the second replace,
+the previous ZIP remains complete and the new checksum cannot validate it unless
+the archive bytes are already identical. After the second replace, the pair matches.
+Any error before replacement preserves both prior final files; staging files are
+removed on handled failure, and a partial ZIP is never installed at the final path.
+
 ## Release notes
 
 `docs/releases/v1.0.0.md` will be the reviewed source for the first release notes.
