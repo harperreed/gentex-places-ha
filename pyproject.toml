@@ -7,6 +7,7 @@ dependencies = []
 [dependency-groups]
 dev = [
   "basedpyright==1.39.9",
+  "pillow==12.3.0",
   "pip-audit==2.10.1",
   "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631",
   "pytest-cov==7.1.0",

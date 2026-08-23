@@ -1014,6 +1014,7 @@ source = { virtual = "." }
 [package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
+    { name = "pillow" },
     { name = "pip-audit" },
     { name = "place-integration-api" },
     { name = "pytest-cov" },
@@ -1026,6 +1027,7 @@ dev = [
 [package.metadata.requires-dev]
 dev = [
     { name = "basedpyright", specifier = "==1.39.9" },
+    { name = "pillow", specifier = "==12.3.0" },
     { name = "pip-audit", specifier = "==2.10.1" },
     { name = "place-integration-api", git = "https://github.com/harperreed/place-integration-api.git?rev=d92f07ecc9b7e66162d60d4a66cc07366543b631" },
     { name = "pytest-cov", specifier = "==7.1.0" },

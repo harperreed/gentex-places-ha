@@ -1,0 +1,10 @@
+<!-- ABOUTME: Defines the editable source for the original Gentex PLACE Home Shield icon. -->
+<!-- ABOUTME: Exports to the two PNG files shipped with the Home Assistant integration. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Home Shield</title>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#0b8f8c"/>
+  <path fill="#ffffff" d="M256 58 414 120v112c0 108-62 183-158 224C160 415 98 340 98 232V120l158-62Z"/>
+  <path fill="#263238" d="m148 260 108-94 108 94-27 31-17-15v102H192V276l-17 15-27-31Z"/>
+  <rect x="234" y="310" width="44" height="68" rx="5" fill="#0b8f8c"/>
+  <circle cx="385" cy="126" r="38" fill="#ffb000" stroke="#ffffff" stroke-width="12"/>
+</svg>
