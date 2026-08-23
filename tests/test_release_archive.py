@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -87,9 +88,9 @@ def _write_members(path: Path, members: dict[str, bytes]) -> None:
             archive.writestr(info, content)
 
 
-def _release_repository(tmp_path: Path) -> Path:
+def _release_repository(tmp_path: Path, name: str = "repository") -> Path:
     """Create a minimal Git-indexed release source tree."""
-    root = tmp_path / "repository"
+    root = tmp_path / name
     source = root / "custom_components/gentex_place"
     source.mkdir(parents=True)
     (root / "LICENSE").write_text("license")
@@ -352,6 +353,81 @@ def test_source_reads_stay_anchored_to_the_open_repository_root(
         os.close(root_descriptor)
 
     assert content == b"{}"
+
+
+def test_build_release_rejects_repository_swap_during_git_enumeration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    build_release, _ = _release_functions()
+    root = _release_repository(tmp_path)
+    replacement = _release_repository(tmp_path, "replacement-repository")
+    replacement_manifest = replacement / "custom_components/gentex_place/manifest.json"
+    replacement_manifest.write_text("replacement")
+    moved_root = tmp_path / "moved-repository"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_shim = bin_dir / "git"
+    git_shim.write_text(
+        "#!/bin/sh\n"
+        "set -eu\n"
+        'if [ -d "$REPLACEMENT_ROOT" ]; then\n'
+        '    mv "$REPOSITORY_ROOT" "$MOVED_ROOT"\n'
+        '    mv "$REPLACEMENT_ROOT" "$REPOSITORY_ROOT"\n'
+        "fi\n"
+        'exec "$REAL_GIT" "$@"\n'
+    )
+    git_shim.chmod(0o700)
+    real_git = shutil.which("git")
+    assert real_git is not None
+    monkeypatch.setenv("REAL_GIT", real_git)
+    monkeypatch.setenv("REPOSITORY_ROOT", str(root))
+    monkeypatch.setenv("MOVED_ROOT", str(moved_root))
+    monkeypatch.setenv("REPLACEMENT_ROOT", str(replacement))
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    archive = tmp_path / "release.zip"
+
+    with pytest.raises(ValueError, match="repository root changed"):
+        build_release(root, archive)
+
+    if archive.exists():
+        with zipfile.ZipFile(archive) as release:
+            assert all(
+                release.read(name) != b"replacement" for name in release.namelist()
+            )
+
+
+def test_build_release_rejects_tracked_fifo_without_blocking(tmp_path: Path) -> None:
+    root = _release_repository(tmp_path)
+    manifest = root / "custom_components/gentex_place/manifest.json"
+    manifest.unlink()
+    os.mkfifo(manifest)
+    archive = tmp_path / "release.zip"
+    process = subprocess.Popen(  # noqa: S603 - exact checked Python and script
+        [
+            sys.executable,
+            str(_BUILDER),
+            "--root",
+            str(root),
+            "--output",
+            str(archive),
+        ],
+        cwd=_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    try:
+        stdout, stderr = process.communicate(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.communicate()
+        pytest.fail("release builder blocked while opening a tracked FIFO")
+
+    assert process.returncode != 0
+    assert stdout == ""
+    assert "tracked release member is not a regular file: manifest.json" in stderr
 
 
 def test_release_cli_builds_and_verifies_an_archive(tmp_path: Path) -> None:

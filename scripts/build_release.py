@@ -92,7 +92,7 @@ def _read_source(root_descriptor: int, name: str, relative: Path) -> bytes:
         try:
             descriptor = os.open(
                 relative.name,
-                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC,
                 dir_fd=directory_descriptor,
             )
         except FileNotFoundError:
@@ -106,18 +106,32 @@ def _read_source(root_descriptor: int, name: str, relative: Path) -> bytes:
     finally:
         os.close(directory_descriptor)
 
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        message = f"tracked release member is not a regular file: {name}"
+        raise ValueError(message)
     with os.fdopen(descriptor, "rb") as source_file:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            message = f"tracked release member is not a regular file: {name}"
-            raise ValueError(message)
         return source_file.read()
 
 
 def _archive_files(root: Path) -> list[tuple[str, bytes]]:
     """Snapshot exact tracked regular files for one release operation."""
-    tracked = _tracked_release_paths(root)
     root_descriptor = _open_root(root)
     try:
+        root_status = os.fstat(root_descriptor)
+        tracked = _tracked_release_paths(root)
+        try:
+            path_status = root.lstat()
+        except FileNotFoundError:
+            message = "release repository root changed during tracked-file enumeration"
+            raise ValueError(message) from None
+        if (
+            not stat.S_ISDIR(path_status.st_mode)
+            or path_status.st_dev != root_status.st_dev
+            or path_status.st_ino != root_status.st_ino
+        ):
+            message = "release repository root changed during tracked-file enumeration"
+            raise ValueError(message)
         return [
             (name, _read_source(root_descriptor, name, relative))
             for name, relative in tracked
