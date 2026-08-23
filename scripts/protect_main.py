@@ -196,7 +196,10 @@ def validate_protection(
         "required_pull_request_reviews.require_last_push_approval",
         expected=False,
     )
-    _require_field(response, "restrictions", None)
+    restrictions = _read_field(response, "restrictions")
+    if restrictions is not _MISSING and restrictions is not None:
+        message = "branch protection mismatch: restrictions"
+        raise ValueError(message)
     _require_field(response, "required_linear_history.enabled", expected=True)
     _require_field(response, "allow_force_pushes.enabled", expected=False)
     _require_field(response, "allow_deletions.enabled", expected=False)

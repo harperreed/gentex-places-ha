@@ -90,4 +90,5 @@
   hooks plus commit/tag signing; machine Git policy must not affect the test suite.
 - GitHub's 2026-03-10 branch-protection API rejects PUT requests containing both
   legacy `contexts` and app-bound `checks`; omit `contexts` from writes and verify
-  its derived names in the GET response.
+  its derived names in the GET response. That GET omits `restrictions` when none
+  exist; validate a missing or null field but reject every non-null value.

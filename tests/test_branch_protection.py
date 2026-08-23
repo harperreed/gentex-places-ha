@@ -325,6 +325,13 @@ def test_validate_protection_accepts_exact_github_read_back() -> None:
     validate_protection(_protection_response(), _CHECKS)
 
 
+def test_validate_protection_accepts_omitted_empty_restrictions() -> None:
+    response = _protection_response()
+    del response["restrictions"]
+
+    validate_protection(response, _CHECKS)
+
+
 def test_validate_protection_accepts_reordered_status_contexts() -> None:
     response = _protection_response()
     response["required_status_checks"]["contexts"] = ["test", "hacs", "hassfest"]
