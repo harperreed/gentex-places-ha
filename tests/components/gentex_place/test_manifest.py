@@ -132,6 +132,7 @@ def test_manifest_and_project_share_the_git_sdk_requirement() -> None:
 
     assert manifest["domain"] == "gentex_place"
     assert manifest["version"] == project["project"]["version"]
+    assert manifest["version"] == "1.0.0"
     assert manifest["requirements"] == [_SDK_REQUIREMENT]
     assert manifest["config_flow"] is True
     assert manifest["iot_class"] == "cloud_push"
@@ -154,12 +155,18 @@ def test_manifest_and_project_share_the_git_sdk_requirement() -> None:
 
 def test_lock_uses_the_approved_public_sdk_commit() -> None:
     lock = _load_toml(_ROOT / "uv.lock")
+    project_package = next(
+        package
+        for package in lock["package"]
+        if package["name"] == "gentex-place-home-assistant"
+    )
     sdk_package = next(
         package
         for package in lock["package"]
         if package["name"] == "place-integration-api"
     )
 
+    assert project_package["version"] == "1.0.0"
     assert sdk_package["version"] == "0.3.0"
     assert sdk_package["source"] == {"git": f"{_SDK_GIT_URL}?rev={_SDK_SHA}#{_SDK_SHA}"}
     assert all(

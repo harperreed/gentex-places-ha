@@ -17,13 +17,35 @@ To install Gentex PLACE as a HACS custom repository:
 1. In HACS, open the three-dot menu and choose **Custom repositories**.
 2. Add `https://github.com/harperreed/gentex-places-ha` with the type
    **Integration**.
-3. Open **Gentex PLACE** in HACS and download it.
+3. Open **Gentex PLACE**, select `v1.0.0`, and choose **Download**.
 4. Restart Home Assistant.
 
 See the [HACS custom-repository instructions](https://hacs.xyz/docs/faq/custom_repositories/)
 if the menu differs in your HACS version. This repository is not in the HACS
-default store. Default-store inclusion is a goal, blocked on licensed brand-art
-provenance and the remote validation listed under [Release status](#release-status).
+default store.
+
+## Upgrade
+
+To upgrade the custom repository to `v1.0.0`:
+
+1. In HACS, open **Gentex PLACE**.
+2. Open the three-dot menu, choose **Redownload**, select `v1.0.0`, and choose
+   **Download**.
+3. Restart Home Assistant.
+4. Confirm that the integration loads and its account and device entities update.
+
+## Rollback
+
+If an upgrade fails, save the Home Assistant logs before changing the install:
+
+1. In HACS, open **Gentex PLACE**.
+2. Open the three-dot menu, choose **Redownload**, select the prior working
+   version, and choose **Download**.
+3. Restart Home Assistant and confirm that the integration reconnects.
+4. Keep the failed downloaded asset and sanitized logs for the bug report.
+
+A broken release stays unchanged. Its fix ships as a higher patch version; the
+project does not move a published tag or replace its ZIP asset.
 
 ## Account setup
 
@@ -215,16 +237,20 @@ only. Repeat this check for each release candidate.
 
 ## Release status
 
-The intended current distribution is a HACS custom repository. HACS default-store
-inclusion and a release candidate remain blocked on:
+The current stable release candidate is `v1.0.0`, distributed through this HACS
+custom repository. The canonical local checks and authorized live read-only check
+pass. These final release gates remain:
 
-- verified provenance and a suitable license for the Gentex brand icon;
-- passing remote HACS and Hassfest validation without ignored failures;
-- installation into a clean current-stable Home Assistant system.
+- remote `test` and Hassfest checks;
+- a remote HACS result of 9/9;
+- verification of the public ZIP and checksum assets; and
+- a live HACS upgrade followed by a Home Assistant restart and state check.
 
-The authorized read-only live check passed on 2026-08-21. That result validates the
-current script and PLACE service path; it does not replace the remaining remote and
-clean-install gates.
+The release workflow runs only when both version sources make the same valid
+increase on `main`. It builds deterministic `gentex_place.zip` and
+`gentex_place.zip.sha256` assets, verifies the draft, then publishes it. Ordinary
+merges are read-only no-ops. Failed drafts stay intact for review, and published
+releases are immutable.
 
 ## License
 

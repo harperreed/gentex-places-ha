@@ -202,15 +202,16 @@ def test_detect_release_sanitizes_invalid_metadata(
 
 def test_cli_prints_exact_json_and_github_output(tmp_path: Path) -> None:
     github_output = tmp_path / "github-output"
+    version = detect_release("HEAD", "HEAD", _ROOT).current
 
     result = _run_checker("HEAD", "HEAD", "--github-output", str(github_output))
 
     assert result.returncode == 0
     assert result.stdout == (
-        '{"previous": "0.1.0", "current": "0.1.0", "required": false}\n'
+        f'{{"previous": "{version}", "current": "{version}", "required": false}}\n'
     )
     assert result.stderr == ""
-    assert github_output.read_text() == ("release_required=false\nversion=0.1.0\n")
+    assert github_output.read_text() == (f"release_required=false\nversion={version}\n")
 
 
 def test_cli_require_release_rejects_noop_without_writing_output(
@@ -241,3 +242,37 @@ def test_workflow_builds_the_verified_root_level_release_archive() -> None:
         "run: uv run python scripts/build_release.py --output dist/gentex_place.zip"
     ) in workflow
     assert "git archive" not in workflow
+
+
+def test_v1_release_notes_cover_the_public_distribution_contract() -> None:
+    notes_path = _ROOT / "docs/releases/v1.0.0.md"
+
+    assert notes_path.is_file()
+    notes = notes_path.read_text()
+    for required in (
+        "# Gentex PLACE v1.0.0",
+        "read-only",
+        "HACS",
+        "d92f07ecc9b7e66162d60d4a66cc07366543b631",
+        "gentex_place.zip",
+        "gentex_place.zip.sha256",
+        "Home Shield",
+        "MIT",
+    ):
+        assert required in notes
+
+    assert "not in the HACS default store" in notes
+    assert "not a Home Assistant Core integration" in notes
+    assert "does not publish the SDK to PyPI" in notes
+
+
+def test_readme_covers_v1_install_upgrade_and_rollback() -> None:
+    readme = (_ROOT / "README.md").read_text()
+    normalized_readme = " ".join(readme.split())
+
+    assert "current stable release candidate is `v1.0.0`" in normalized_readme
+    assert "https://github.com/harperreed/gentex-places-ha" in readme
+    assert "not in the HACS default store" in normalized_readme
+    assert "blocked on licensed brand-art" not in normalized_readme
+    for heading in ("## Installation", "## Upgrade", "## Rollback"):
+        assert heading in readme
