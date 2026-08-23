@@ -84,7 +84,6 @@ def protection_payload(
     return {
         "required_status_checks": {
             "strict": True,
-            "contexts": [],
             "checks": checks,
         },
         "enforce_admins": True,

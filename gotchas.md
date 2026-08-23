@@ -88,3 +88,6 @@
   paginated release array without `--slurp`, and match the full tag name.
 - Disposable Git test repositories must ignore global/system config and override
   hooks plus commit/tag signing; machine Git policy must not affect the test suite.
+- GitHub's 2026-03-10 branch-protection API rejects PUT requests containing both
+  legacy `contexts` and app-bound `checks`; omit `contexts` from writes and verify
+  its derived names in the GET response.

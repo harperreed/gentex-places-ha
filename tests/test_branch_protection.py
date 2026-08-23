@@ -307,7 +307,6 @@ def test_protection_payload_is_the_exact_protected_main_policy() -> None:
     assert payload == {
         "required_status_checks": {
             "strict": True,
-            "contexts": [],
             "checks": _CHECKS,
         },
         "enforce_admins": True,
