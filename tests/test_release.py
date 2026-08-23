@@ -491,6 +491,18 @@ def test_v1_0_1_release_notes_cover_the_metadata_patch_contract() -> None:
         assert required in notes
 
 
+def test_v1_0_1_plan_resolves_the_release_tag_to_its_commit() -> None:
+    plan = (_ROOT / "docs/superpowers/plans/2026-08-23-v1.0.1-release.md").read_text()
+
+    assert (
+        "tag_sha=$(gh api repos/harperreed/gentex-places-ha/commits/v1.0.1 --jq .sha)"
+    ) in plan
+    assert "--json tagName,targetCommitish" in plan
+    assert 'test "$release_tag" = "v1.0.1"' in plan
+    assert 'test "$main_sha" = "$release_target"' in plan
+    assert "git/ref/tags/v1.0.1" not in plan
+
+
 def test_readme_covers_v1_install_upgrade_and_rollback() -> None:
     readme = (_ROOT / "README.md").read_text()
     normalized_readme = _normalized(readme)
