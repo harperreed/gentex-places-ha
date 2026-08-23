@@ -92,3 +92,6 @@
   legacy `contexts` and app-bound `checks`; omit `contexts` from writes and verify
   its derived names in the GET response. That GET omits `restrictions` when none
   exist; validate a missing or null field but reject every non-null value.
+- A GitHub draft release has `tagName` and `targetCommitish` but no Git ref; GitHub
+  creates `refs/tags/vVERSION` only when the draft publishes. Verify the draft's
+  exact target before publication and verify the tag ref after publication.

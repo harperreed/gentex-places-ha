@@ -356,8 +356,8 @@ def test_release_scripts_fail_closed_and_verify_uploaded_assets() -> None:
     assert (
         'scripts/build_release.py --verify "$download_dir/gentex_place.zip"' in verify
     )
-    assert "--json isDraft,assets" in verify
-    assert '"repos/$GITHUB_REPOSITORY/git/ref/tags/v$version"' in verify
+    assert "--json isDraft,targetCommitish,assets" in verify
+    assert '"repos/$GITHUB_REPOSITORY/git/ref/tags/v$version"' not in verify
 
 
 def test_dependabot_tracks_locked_python_and_action_dependencies() -> None:

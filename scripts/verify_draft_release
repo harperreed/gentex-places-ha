@@ -72,17 +72,16 @@ uv run python scripts/build_release.py --verify "$download_dir/gentex_place.zip"
 
 release_state=$(gh release view "v$version" \
     --repo "$GITHUB_REPOSITORY" \
-    --json isDraft,assets \
-    --jq '.isDraft, (.assets | map(.name) | sort | .[])')
-expected_release_state=$(printf '%s\n' \
-    true \
+    --json isDraft,targetCommitish,assets \
+    --jq '.isDraft, .targetCommitish, (.assets | map(.name) | sort | .[])')
+release_metadata=$(printf '%s\n' "$release_state" | sed -n '1,2p')
+expected_release_metadata=$(printf '%s\n' true "$release_sha")
+[ "$release_metadata" = "$expected_release_metadata" ] || \
+    fail "release v$version has unexpected target or draft state"
+
+release_assets=$(printf '%s\n' "$release_state" | sed '1,2d')
+expected_release_assets=$(printf '%s\n' \
     gentex_place.zip \
     gentex_place.zip.sha256)
-[ "$release_state" = "$expected_release_state" ] || \
+[ "$release_assets" = "$expected_release_assets" ] || \
     fail "release v$version has unexpected assets or draft state"
-
-tag_sha=$(gh api --method GET \
-    -H "X-GitHub-Api-Version: 2026-03-10" \
-    "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" \
-    --jq .object.sha)
-[ "$tag_sha" = "$release_sha" ] || fail "release tag v$version does not target $release_sha"

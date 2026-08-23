@@ -195,7 +195,7 @@ def test_draft_verifier_preserves_signal_status_and_cleans_temp_directory(
 
 
 def _draft_environment(tmp_path: Path, release_state: str) -> dict[str, str]:
-    """Create controlled download, release-view, tag-ref, and build boundaries."""
+    """Create controlled download, release-view, and build boundaries."""
     bin_dir = tmp_path / "bin"
     temp_dir = tmp_path / "temp"
     dist_dir = tmp_path / "dist"
@@ -225,24 +225,25 @@ def _draft_environment(tmp_path: Path, release_state: str) -> dict[str, str]:
         '    cp "$TEST_DIST/gentex_place.zip.sha256" "$download_dir/"\n'
         'elif [ "$1 $2" = "release view" ]; then\n'
         '    case " $* " in\n'
-        '        *" --json isDraft,assets "*) printf \'%s\\n\' "$RELEASE_STATE" ;;\n'
-        "        *) printf 'true\\n' ;;\n"
+        '        *" --json isDraft,targetCommitish,assets "*) '
+        "printf '%s\\n' \"$RELEASE_STATE\" ;;\n"
+        "        *) exit 10 ;;\n"
         "    esac\n"
-        'elif [ "$1" = "api" ]; then\n'
-        "    printf '%s\\n' \"$TEST_RELEASE_SHA\"\n"
         "else\n"
         "    exit 9\n"
         "fi\n",
     )
     env = _environment(bin_dir, temp_dir)
     env["TEST_DIST"] = str(dist_dir)
-    env["TEST_RELEASE_SHA"] = _RELEASE_SHA
     env["RELEASE_STATE"] = release_state
     return env
 
 
 def test_draft_verifier_accepts_the_exact_asset_set(tmp_path: Path) -> None:
-    env = _draft_environment(tmp_path, f"true\n{_EXPECTED_ASSETS}")
+    env = _draft_environment(
+        tmp_path,
+        f"true\n{_RELEASE_SHA}\n{_EXPECTED_ASSETS}",
+    )
 
     result = subprocess.run(  # noqa: S603 - exact checked repository script
         [str(_DRAFT_CHECK), "1.2.3", _RELEASE_SHA],
@@ -260,8 +261,34 @@ def test_draft_verifier_accepts_the_exact_asset_set(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "release_state",
     [
-        "true\ngentex_place.zip",
-        f"true\n{_EXPECTED_ASSETS}\nunexpected.bin",
+        f"false\n{_RELEASE_SHA}\n{_EXPECTED_ASSETS}",
+        f"true\n{'b' * 40}\n{_EXPECTED_ASSETS}",
+    ],
+)
+def test_draft_verifier_rejects_unexpected_target_or_draft_state(
+    tmp_path: Path,
+    release_state: str,
+) -> None:
+    env = _draft_environment(tmp_path, release_state)
+
+    result = subprocess.run(  # noqa: S603 - exact checked repository script
+        [str(_DRAFT_CHECK), "1.2.3", _RELEASE_SHA],
+        cwd=tmp_path,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr == "release v1.2.3 has unexpected target or draft state\n"
+
+
+@pytest.mark.parametrize(
+    "release_state",
+    [
+        f"true\n{_RELEASE_SHA}\ngentex_place.zip",
+        f"true\n{_RELEASE_SHA}\n{_EXPECTED_ASSETS}\nunexpected.bin",
     ],
 )
 def test_draft_verifier_rejects_missing_or_extra_assets(
