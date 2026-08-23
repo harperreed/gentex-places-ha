@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies PLACE setup, MFA, duplicate-account, error, and reauth flows.
 # ABOUTME: Tests use public SDK fakes and assert secrets never enter flow results.
 """Tests for the Gentex PLACE config flow."""

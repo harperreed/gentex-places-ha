@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Exposes detailed safety alarms and numeric PLACE device telemetry.
 # ABOUTME: Data-driven descriptions keep SDK values live and preserve raw readings.
 """Sensor platform for Gentex PLACE."""

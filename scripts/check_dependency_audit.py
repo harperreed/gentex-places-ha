@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Runs pip-audit and enforces the approved cryptography risk exception.
 # ABOUTME: Rejects any drift in the audited package, version, or finding set.
 # ruff: noqa: INP001, T201

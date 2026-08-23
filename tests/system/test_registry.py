@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Exercises the packaged integration through real Home Assistant registries.
 # ABOUTME: Replaces only SDK network behavior with one deterministic local boundary.
 """Packaged Home Assistant registry and entity lifecycle scenario."""

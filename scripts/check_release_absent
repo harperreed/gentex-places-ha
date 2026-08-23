@@ -1,0 +1,80 @@
+#!/bin/sh
+# ABOUTME: Refuses existing tags and published releases before release creation.
+# ABOUTME: Adds draft-aware pagination only for the write-authorized preflight.
+set -eu
+
+fail() {
+    printf '%s\n' "$1" >&2
+    exit 1
+}
+
+case "$#" in
+    1) include_drafts=false ;;
+    2)
+        [ "$2" = "--include-drafts" ] || \
+            fail "usage: scripts/check_release_absent VERSION [--include-drafts]"
+        include_drafts=true
+        ;;
+    *) fail "usage: scripts/check_release_absent VERSION [--include-drafts]" ;;
+esac
+version=$1
+
+case "$version" in
+    "" | *[!0-9.]* | .* | *. | *..* | *.*.*.*)
+        fail "version must be a stable semantic version"
+        ;;
+esac
+case "$version" in
+    *.*.*) ;;
+    *) fail "version must be a stable semantic version" ;;
+esac
+
+major=${version%%.*}
+remainder=${version#*.}
+minor=${remainder%%.*}
+patch=${remainder#*.}
+for component in "$major" "$minor" "$patch"; do
+    case "$component" in
+        0 | [1-9] | [1-9][0-9]*) ;;
+        *) fail "version must be a stable semantic version" ;;
+    esac
+done
+
+: "${GH_TOKEN:?GH_TOKEN must be set}"
+: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
+
+if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
+    fail "release tag v$version already exists"
+else
+    tag_status=$?
+fi
+case "$tag_status" in
+    2) ;;
+    *) fail "cannot prove release tag v$version is absent" ;;
+esac
+
+release_status=$(curl --silent --show-error --output /dev/null \
+    --write-out '%{http_code}' \
+    --header "Accept: application/vnd.github+json" \
+    --header "Authorization: Bearer $GH_TOKEN" \
+    --header "X-GitHub-Api-Version: 2026-03-10" \
+    "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/v$version")
+case "$release_status" in
+    "404") ;;
+    "200") fail "release v$version already exists" ;;
+    *) fail "cannot prove release v$version is absent (HTTP $release_status)" ;;
+esac
+
+if [ "$include_drafts" = "true" ]; then
+    # GitHub lists drafts only to callers with push access; tag lookup is published-only.
+    if matching_release=$(gh api --method GET \
+        -H "X-GitHub-Api-Version: 2026-03-10" \
+        --paginate \
+        "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+        --jq ".[] | select(.tag_name == \"v$version\") | .tag_name"); then
+        :
+    else
+        fail "cannot prove release v$version is absent"
+    fi
+    [ -z "$matching_release" ] || fail "release v$version already exists"
+fi

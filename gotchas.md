@@ -72,5 +72,23 @@
   auth, provider, connection, and device paths. Inject only at Cognito, fulfillment
   HTTP, and MQTT transport seams; prove cleanup through public state and seam events,
   never SDK private fields.
-- `git archive --prefix=gentex_place/ --add-file=LICENSE` puts the root MIT notice at
-  `gentex_place/LICENSE`, preserving one source of truth and the single-directory ZIP.
+- HACS `zip_release` extracts straight into `/config/custom_components/gentex_place`.
+  Its asset must put the tracked integration files and root `LICENSE` at the ZIP
+  root; a `gentex_place/` wrapper creates a broken nested install.
+- Validation runs on pull requests and pushes to `main`, not work-branch pushes.
+  Branch protection first requires `total_count == len(check_runs)`, then exactly
+  one successful GitHub Actions run for each required name; truncation, duplicates,
+  and mixed results fail closed because freshness is unproven.
+- Snapshot every tracked release source before touching output. Reject ZIP/checksum
+  symlinks and source aliases, verify fresh same-directory stages, then replace the
+  checksum before the complete ZIP so a stale checksum cannot bless new ZIP bytes.
+- Harper Reed owns the repository and Home Shield copyright. Do not assign either
+  copyright to Gentex; the MIT license and source notices must name Harper Reed.
+- GitHub CLI 2.96 rejects `gh api --paginate --slurp --jq`. Apply `.[]` to each
+  paginated release array without `--slurp`, and match the full tag name.
+- Disposable Git test repositories must ignore global/system config and override
+  hooks plus commit/tag signing; machine Git policy must not affect the test suite.
+- GitHub's 2026-03-10 branch-protection API rejects PUT requests containing both
+  legacy `contexts` and app-bound `checks`; omit `contexts` from writes and verify
+  its derived names in the GET response. That GET omits `restrictions` when none
+  exist; validate a missing or null field but reject every non-null value.

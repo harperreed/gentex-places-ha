@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies PLACE connectivity, motion, health, and mode binary sensors.
 # ABOUTME: Loaded-entry tests exercise SDK pushes through Home Assistant state paths.
 """Tests for Gentex PLACE device-status binary sensors."""

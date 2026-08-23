@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Handles Gentex PLACE account setup, MFA, duplicate checks, and reauth.
 # ABOUTME: Persists only username, refresh token, and stable Cognito account identity.
 """Config flow for the Gentex PLACE integration."""

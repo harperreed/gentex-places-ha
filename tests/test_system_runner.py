@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies packaged-runner setup failures stop and preserve useful logs.
 # ABOUTME: Uses a controlled executable boundary while exercising the real POSIX shell.
 """Shell lifecycle tests for the isolated packaged-system runner."""
@@ -23,6 +23,10 @@ def test_runner_stops_at_early_setup_failure_and_prints_preserved_log(
     uv = bin_dir / "uv"
     uv.write_text(
         "#!/bin/sh\n"
+        'if [ "$1" = "run" ] && [ "$2" = "python" ]; then\n'
+        "    shift 2\n"
+        '    exec /usr/bin/python3 "$@"\n'
+        "fi\n"
         'if [ "$1" = "venv" ]; then\n'
         '    mkdir -p "$4/bin"\n'
         "    printf '#!/bin/sh\\nexit 0\\n' >\"$4/bin/python\"\n"
@@ -68,6 +72,10 @@ def test_runner_stops_when_packaged_working_directory_disappears(
     uv = bin_dir / "uv"
     uv.write_text(
         "#!/bin/sh\n"
+        'if [ "$1" = "run" ] && [ "$2" = "python" ]; then\n'
+        "    shift 2\n"
+        '    exec /usr/bin/python3 "$@"\n'
+        "fi\n"
         'if [ "$1" = "venv" ]; then\n'
         '    mkdir -p "$4/bin"\n'
         "    printf '#!/bin/sh\\nexit 0\\n' >\"$4/bin/python\"\n"
@@ -118,3 +126,18 @@ def test_runner_stops_when_packaged_working_directory_disappears(
     log = log_path.read_text()
     assert "controlled package removal" in log
     assert str(package_root) in log
+
+
+def test_runner_builds_and_extracts_the_release_before_packaged_tests() -> None:
+    """Require the system run to exercise the HACS ZIP instead of source files."""
+    runner = _RUNNER.read_text()
+    build = 'uv run python "$source_root/scripts/build_release.py"'
+    extract = 'uv run python -m zipfile -e "$test_root/release/gentex_place.zip"'
+    packaged_target = '"$package_root/custom_components/gentex_place"'
+    pytest = '"$venv_root/bin/python" -m pytest'
+
+    assert build in runner
+    assert extract in runner
+    assert packaged_target in runner
+    assert "cp -R" not in runner
+    assert runner.index(build) < runner.index(extract) < runner.index(pytest)

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies PLACE entity identity, device metadata, and availability.
 # ABOUTME: Account-scoped identifiers prevent registry collisions across entries.
 """Tests for shared Gentex PLACE entity behavior."""

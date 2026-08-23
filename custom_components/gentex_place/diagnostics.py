@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Builds a strict allow-list of private-safe PLACE support diagnostics.
 # ABOUTME: Device and exception identifiers never enter the returned structure.
 """Diagnostics support for Gentex PLACE."""

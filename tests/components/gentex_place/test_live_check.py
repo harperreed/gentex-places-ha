@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies the opt-in PLACE live check exposes no secrets or write paths.
 # ABOUTME: Exercises pure output helpers and credential-free CLI source contracts.
 """Tests for the read-only PLACE live release check."""

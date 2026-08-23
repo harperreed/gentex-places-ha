@@ -1,5 +1,5 @@
 <!-- ABOUTME: Documents installation, setup, entities, privacy, and support for Gentex PLACE. -->
-<!-- ABOUTME: Records the read-only live check and the release gates that remain open. -->
+<!-- ABOUTME: Records the read-only live check and the stable release process. -->
 
 # Gentex PLACE for Home Assistant
 
@@ -17,13 +17,59 @@ To install Gentex PLACE as a HACS custom repository:
 1. In HACS, open the three-dot menu and choose **Custom repositories**.
 2. Add `https://github.com/harperreed/gentex-places-ha` with the type
    **Integration**.
-3. Open **Gentex PLACE** in HACS and download it.
-4. Restart Home Assistant.
+3. On the **Gentex PLACE** entry, open the three-dot menu and choose
+   **Download**.
+4. Under **Need a different version?**, select `v1.0.0`, then choose
+   **Download**.
+5. Restart Home Assistant.
 
 See the [HACS custom-repository instructions](https://hacs.xyz/docs/faq/custom_repositories/)
 if the menu differs in your HACS version. This repository is not in the HACS
-default store. Default-store inclusion is a goal, blocked on licensed brand-art
-provenance and the remote validation listed under [Release status](#release-status).
+default store.
+
+## Upgrade
+
+To upgrade the custom repository to `v1.0.0`:
+
+1. Go to **Settings > System > Backups**. In the lower-right corner, choose
+   **Backup now**, then **Manual backup**.
+2. Make sure the backup data includes the `config` folder, name the backup, and
+   choose its location.
+3. Download the backup emergency kit and store it safely, then select
+   **Create backup**.
+4. Select **Show all backups**. Select the new backup, open its three-dot menu, and
+   choose **Download backup**. Keep that copy on another device.
+5. In HACS, find **Gentex PLACE**. On its entry, open the three-dot menu and choose
+   **Redownload**.
+6. Under **Need a different version?**, select `v1.0.0`, then choose
+   **Download**.
+7. Restart Home Assistant.
+8. Confirm that the integration loads and its account and device entities update.
+
+These backup steps follow the official [Home Assistant backup instructions](https://www.home-assistant.io/common-tasks/general/#backups)
+and [HACS repository update instructions](https://hacs.xyz/docs/use/update/).
+The `config` backup contains the installed custom integration and Home Assistant's
+stored config entries.
+
+## Rollback
+
+`v1.0.0` is this repository's first release, so HACS has no earlier release to
+select. If the upgrade fails, do not delete the integration or its config entry:
+
+1. Save sanitized Home Assistant logs and keep the failed downloaded asset.
+2. Go to **Settings > System > Backups**, choose **Show all backups**, and select
+   the manual backup made before the upgrade.
+3. Select the `config` folder and choose **Restore**. This overwrites configuration
+   changes made since the backup and restarts Home Assistant.
+4. Sign in after the restart and confirm that the restored Gentex PLACE config
+   entries reconnect without being added again.
+
+The off-device **Download backup** copy remains available for wider Home Assistant
+recovery. For releases after `v1.0.0`, HACS **Redownload** can select an earlier
+published version under **Need a different version?** when HACS offers it.
+
+A broken release stays unchanged. Its fix ships as a higher patch version; the
+project does not move a published tag or replace its ZIP asset.
 
 ## Account setup
 
@@ -211,20 +257,30 @@ It exits nonzero on authentication, discovery, connection, or 30-second readines
 failure and closes its HTTP session and PLACE client on every exit path. An authorized
 run passed on 2026-08-21 against commit `a11133a`: the account connected and every
 discovered device produced reported state while the script printed aggregate counts
-only. Repeat this check for each release candidate.
+only. Repeat this check before each proposed release.
 
-## Release status
+## Releases
 
-The intended current distribution is a HACS custom repository. HACS default-store
-inclusion and a release candidate remain blocked on:
+`v1.0.0` is the first stable version. [GitHub Releases](https://github.com/harperreed/gentex-places-ha/releases)
+is the source of truth for which versions are public and which ZIP and checksum
+assets are available. HACS can install a version only after it appears there.
 
-- verified provenance and a suitable license for the Gentex brand icon;
-- passing remote HACS and Hassfest validation without ignored failures;
-- installation into a clean current-stable Home Assistant system.
+Before publication, each proposed version must pass `scripts/check`, Hassfest, and
+HACS validation. The workflow then builds a draft ZIP and checksum and verifies the
+tag, target commit, asset bytes, checksum, and archive contents.
 
-The authorized read-only live check passed on 2026-08-21. That result validates the
-current script and PLACE service path; it does not replace the remaining remote and
-clean-install gates.
+After publication, maintainers download both assets without repository credentials,
+compare them with a clean build from the tagged commit, and test the HACS upgrade in
+Home Assistant. If that check finds a defect, the fix ships as a higher version;
+the published tag and assets stay unchanged.
+
+The release detector checks every push to `main`. The workflow publishes only when
+both version sources increase together to the same valid stable version. An
+unchanged matching version is a read-only no-op; invalid or mismatched metadata
+fails the workflow. For a valid increase, the publisher builds deterministic
+`gentex_place.zip` and `gentex_place.zip.sha256` assets, verifies the draft, then
+publishes it. Failed drafts stay intact for review, and published releases are
+immutable.
 
 ## License
 

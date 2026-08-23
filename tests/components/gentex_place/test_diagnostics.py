@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Gentex
+# Copyright (c) 2026 Harper Reed
 # ABOUTME: Verifies PLACE diagnostics use a strict privacy-preserving allow list.
 # ABOUTME: Canary tests cover diagnostics and meaningful setup/coordinator logs.
 """Tests for Gentex PLACE diagnostics and log privacy."""
@@ -251,7 +251,7 @@ async def test_diagnostics_are_fresh_exact_allow_list_without_private_canaries(
             "timing",
             "last_error",
         }
-        assert diagnostics["integration_version"] == "0.1.0"
+        assert diagnostics["integration_version"] == "1.0.0"
         assert diagnostics["home_assistant_version"] == ha_const.__version__
         assert diagnostics["sdk_version"] == place.__version__ == "0.3.0"
         assert diagnostics["connected"] is True
