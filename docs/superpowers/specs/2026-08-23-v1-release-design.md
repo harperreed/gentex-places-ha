@@ -192,6 +192,8 @@ PyPI publication, write control, or behavior that the integration does not provi
 Before the release pull request merges, the public repository's `main` branch will
 receive branch protection through the GitHub API. Protection will:
 
+- run validation for pull requests and pushes to `main`, without creating
+  same-name validation runs for pushes to work branches;
 - require a pull request before merging;
 - require the exact `test`, `hassfest`, and `hacs` status checks;
 - bind those checks to the GitHub Actions app that produced the current successful
@@ -205,6 +207,12 @@ receive branch protection through the GitHub API. Protection will:
 The setting must not allow administrators to bypass the protected flow for this
 release. The implementation will read the resulting branch-protection document
 back from GitHub and compare every required field before merging.
+
+The protection helper will accept exactly one check run for each required name on
+the supplied pull-request head SHA. A missing, duplicate, pending, failed, mixed,
+or non-GitHub-Actions required run fails closed. The helper will not guess which
+duplicate is newest because the consumed check-run shape has no tested ordering or
+freshness contract.
 
 All release work will happen on the existing work branch and reach `main` through a
 pull request. The pull request must show all three required checks passing. A merge

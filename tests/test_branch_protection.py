@@ -52,16 +52,13 @@ def _check_run(
 
 
 def _check_runs() -> dict[str, Any]:
-    """Build required successes plus irrelevant and stale duplicate runs."""
+    """Build one required success per name plus irrelevant runs."""
     return {
-        "total_count": 8,
+        "total_count": 5,
         "check_runs": [
             _check_run("test"),
-            _check_run("test", conclusion="failure"),
             _check_run("hassfest"),
-            _check_run("hassfest", status="queued", conclusion=None),
             _check_run("hacs"),
-            _check_run("hacs", conclusion="failure"),
             _check_run("lint"),
             _check_run("external", app_slug="other-app"),
         ],
@@ -179,6 +176,38 @@ def test_trusted_checks_selects_required_successes_from_github_actions() -> None
 
 
 @pytest.mark.parametrize(
+    "second_run",
+    [
+        pytest.param(_check_run("hacs"), id="duplicate-success"),
+        pytest.param(_check_run("hacs", conclusion="failure"), id="mixed-failure"),
+        pytest.param(
+            _check_run("hacs", status="queued", conclusion=None),
+            id="mixed-pending",
+        ),
+    ],
+)
+def test_trusted_checks_rejects_more_than_one_run_for_a_required_name(
+    second_run: dict[str, Any],
+) -> None:
+    response = _check_runs()
+    response["check_runs"].append(second_run)
+
+    with pytest.raises(ValueError, match="exactly one required check: hacs"):
+        trusted_checks(response)
+
+
+def test_trusted_checks_rejects_older_success_with_newer_failure() -> None:
+    response = _check_runs()
+    response["check_runs"] = [
+        *response["check_runs"],
+        _check_run("test", conclusion="failure"),
+    ]
+
+    with pytest.raises(ValueError, match="exactly one required check: test"):
+        trusted_checks(response)
+
+
+@pytest.mark.parametrize(
     ("mutation", "message"),
     [
         pytest.param("missing", "missing required check: hacs", id="missing"),
@@ -197,11 +226,9 @@ def test_trusted_checks_fails_closed(
     if mutation == "missing":
         response["check_runs"] = [run for run in runs if run["name"] != "hacs"]
     elif mutation == "failure":
-        response["check_runs"] = [
-            run
-            for run in runs
-            if run["name"] != "hacs" or run["conclusion"] != "success"
-        ]
+        for run in runs:
+            if run["name"] == "hacs":
+                run["conclusion"] = "failure"
     elif mutation == "app-slug":
         for run in runs:
             if run["name"] == "hacs" and run["conclusion"] == "success":
@@ -492,11 +519,9 @@ def test_cli_rejects_a_noncanonical_check_sha_before_api_access(
 def test_cli_prints_no_payload_when_a_required_check_failed(tmp_path: Path) -> None:
     env, command_log, put_input = _cli_environment(tmp_path)
     check_runs = _check_runs()
-    check_runs["check_runs"] = [
-        run
-        for run in check_runs["check_runs"]
-        if run["name"] != "hacs" or run["conclusion"] != "success"
-    ]
+    for run in check_runs["check_runs"]:
+        if run["name"] == "hacs":
+            run["conclusion"] = "failure"
     env["CHECK_RUNS_JSON"] = json.dumps(check_runs)
 
     result = _run_cli(env)

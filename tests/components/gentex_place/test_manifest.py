@@ -204,6 +204,16 @@ def test_canonical_check_runs_every_local_gate() -> None:
 def test_validation_workflow_uses_pinned_official_actions() -> None:
     workflow = (_ROOT / ".github/workflows/validate.yml").read_text()
 
+    trigger_preamble, separator, _ = workflow.partition("permissions:\n")
+    assert separator == "permissions:\n"
+    assert trigger_preamble == (
+        "name: Validate\n\n"
+        "on:\n"
+        "  pull_request:\n"
+        "  push:\n"
+        "    branches:\n"
+        "      - main\n\n"
+    )
     assert "permissions:\n  contents: read" in workflow
     assert workflow.count("runs-on: ubuntu-latest") == _WORKFLOW_JOB_COUNT
     assert workflow.count(_CHECKOUT_ACTION) == _WORKFLOW_JOB_COUNT

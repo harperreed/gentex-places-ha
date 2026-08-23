@@ -36,24 +36,18 @@ def trusted_checks(check_runs: dict[str, Any]) -> list[dict[str, int | str]]:
         if not named:
             message = f"missing required check: {name}"
             raise ValueError(message)
-        successful = [
-            run
-            for run in named
-            if run.get("status") == "completed" and run.get("conclusion") == "success"
-        ]
-        if not successful:
+        if len(named) != 1:
+            message = f"expected exactly one required check: {name}"
+            raise ValueError(message)
+        run = named[0]
+        if run.get("status") != "completed" or run.get("conclusion") != "success":
             message = f"no successful completed check: {name}"
             raise ValueError(message)
-        produced_by_actions = [
-            run
-            for run in successful
-            if isinstance(run.get("app"), dict)
-            and run["app"].get("slug") == _TRUSTED_APP_SLUG
-        ]
-        if not produced_by_actions:
+        app = run.get("app")
+        if not isinstance(app, dict) or app.get("slug") != _TRUSTED_APP_SLUG:
             message = f"no successful check from github-actions app: {name}"
             raise ValueError(message)
-        app_id = produced_by_actions[0]["app"].get("id")
+        app_id = app.get("id")
         if not isinstance(app_id, int) or isinstance(app_id, bool) or app_id <= 0:
             message = f"invalid github-actions app ID for check: {name}"
             raise ValueError(message)
