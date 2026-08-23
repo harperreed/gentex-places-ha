@@ -21,12 +21,29 @@ _COMMIT_SHA = re.compile(r"[0-9a-f]{40}\Z")
 _MISSING = object()
 
 
-def trusted_checks(check_runs: dict[str, Any]) -> list[dict[str, int | str]]:
-    """Return the required successful checks bound to one GitHub Actions app."""
+def _complete_check_runs(check_runs: dict[str, Any]) -> list[Any]:
+    """Return a complete GitHub check-run page or fail closed."""
     runs = check_runs.get("check_runs")
     if not isinstance(runs, list):
         message = "GitHub check-run response has no check_runs list"
         raise ValueError(message)  # noqa: TRY004 - CLI policy errors use ValueError
+    total_count = check_runs.get("total_count")
+    if (
+        not isinstance(total_count, int)
+        or isinstance(total_count, bool)
+        or total_count < 0
+    ):
+        message = "GitHub check-run response has invalid total_count"
+        raise ValueError(message)
+    if total_count != len(runs):
+        message = "GitHub check-run response has incomplete check_runs list"
+        raise ValueError(message)
+    return runs
+
+
+def trusted_checks(check_runs: dict[str, Any]) -> list[dict[str, int | str]]:
+    """Return the required successful checks bound to one GitHub Actions app."""
+    runs = _complete_check_runs(check_runs)
 
     checks: list[dict[str, int | str]] = []
     for name in _REQUIRED_CHECKS:

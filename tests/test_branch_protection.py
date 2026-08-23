@@ -171,8 +171,64 @@ def _run_cli(
     )
 
 
-def test_trusted_checks_selects_required_successes_from_github_actions() -> None:
+def test_trusted_checks_accepts_equal_total_count_and_required_successes() -> None:
     assert trusted_checks(_check_runs()) == _CHECKS
+
+
+def test_trusted_checks_rejects_truncated_page_before_name_analysis() -> None:
+    response = {
+        "total_count": 101,
+        "check_runs": [
+            _check_run("test"),
+            _check_run("hassfest"),
+            _check_run("hacs"),
+        ],
+    }
+
+    with pytest.raises(ValueError, match="incomplete check_runs list"):
+        trusted_checks(response)
+
+
+@pytest.mark.parametrize(
+    "total_count",
+    [
+        pytest.param(4, id="smaller"),
+        pytest.param(6, id="larger"),
+    ],
+)
+def test_trusted_checks_rejects_total_count_length_mismatch(
+    total_count: int,
+) -> None:
+    response = _check_runs()
+    response["total_count"] = total_count
+
+    with pytest.raises(ValueError, match="incomplete check_runs list"):
+        trusted_checks(response)
+
+
+@pytest.mark.parametrize(
+    "total_count",
+    [
+        pytest.param(None, id="null"),
+        pytest.param("5", id="string"),
+        pytest.param(True, id="bool"),
+        pytest.param(-1, id="negative"),
+    ],
+)
+def test_trusted_checks_rejects_invalid_total_count(total_count: object) -> None:
+    response = _check_runs()
+    response["total_count"] = total_count
+
+    with pytest.raises(ValueError, match="invalid total_count"):
+        trusted_checks(response)
+
+
+def test_trusted_checks_rejects_missing_total_count() -> None:
+    response = _check_runs()
+    del response["total_count"]
+
+    with pytest.raises(ValueError, match="invalid total_count"):
+        trusted_checks(response)
 
 
 @pytest.mark.parametrize(
@@ -191,6 +247,7 @@ def test_trusted_checks_rejects_more_than_one_run_for_a_required_name(
 ) -> None:
     response = _check_runs()
     response["check_runs"].append(second_run)
+    response["total_count"] = len(response["check_runs"])
 
     with pytest.raises(ValueError, match="exactly one required check: hacs"):
         trusted_checks(response)
@@ -202,6 +259,7 @@ def test_trusted_checks_rejects_older_success_with_newer_failure() -> None:
         *response["check_runs"],
         _check_run("test", conclusion="failure"),
     ]
+    response["total_count"] = len(response["check_runs"])
 
     with pytest.raises(ValueError, match="exactly one required check: test"):
         trusted_checks(response)
@@ -225,6 +283,7 @@ def test_trusted_checks_fails_closed(
     assert isinstance(runs, list)
     if mutation == "missing":
         response["check_runs"] = [run for run in runs if run["name"] != "hacs"]
+        response["total_count"] = len(response["check_runs"])
     elif mutation == "failure":
         for run in runs:
             if run["name"] == "hacs":

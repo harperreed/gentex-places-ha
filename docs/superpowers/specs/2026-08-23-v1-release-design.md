@@ -234,6 +234,11 @@ or non-GitHub-Actions required run fails closed. The helper will not guess which
 duplicate is newest because the consumed check-run shape has no tested ordering or
 freshness contract.
 
+Before inspecting names, the helper will require `total_count` to be a non-boolean,
+nonnegative integer equal to the number of returned `check_runs`. The API request
+uses the maximum page size of 100, so any larger total or other count mismatch proves
+the response incomplete and fails closed instead of trusting a truncated page.
+
 All release work will happen on the existing work branch and reach `main` through a
 pull request. The pull request must show all three required checks passing. A merge
 must not occur until branch protection has been applied and verified.
