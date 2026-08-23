@@ -73,7 +73,7 @@ def _protection_response() -> dict[str, Any]:
     return {
         "required_status_checks": {
             "strict": True,
-            "contexts": [],
+            "contexts": [check["context"] for check in _CHECKS],
             "checks": deepcopy(_CHECKS),
         },
         "enforce_admins": {"enabled": True},
@@ -240,6 +240,13 @@ def test_validate_protection_accepts_exact_github_read_back() -> None:
     validate_protection(_protection_response(), _CHECKS)
 
 
+def test_validate_protection_accepts_reordered_status_contexts() -> None:
+    response = _protection_response()
+    response["required_status_checks"]["contexts"] = ["test", "hacs", "hassfest"]
+
+    validate_protection(response, _CHECKS)
+
+
 @pytest.mark.parametrize(
     "allowances",
     [
@@ -306,11 +313,6 @@ def test_validate_protection_rejects_bypass_allowances(
     [
         ("required_status_checks.strict", False, "required_status_checks.strict"),
         (
-            "required_status_checks.contexts",
-            ["test"],
-            "required_status_checks.contexts",
-        ),
-        (
             "required_status_checks.checks",
             [{"context": "hacs", "app_id": 99999}, *_CHECKS[1:]],
             "required_status_checks.checks",
@@ -349,9 +351,39 @@ def test_validate_protection_rejects_policy_drift(
         validate_protection(response, _CHECKS)
 
 
+@pytest.mark.parametrize(
+    "contexts",
+    [
+        pytest.param([], id="empty"),
+        pytest.param(["hacs", "hassfest", "test", "lint"], id="extra"),
+        pytest.param(["hacs", "hassfest", "test", "test"], id="duplicate"),
+        pytest.param(["hacs", "hassfest", "lint"], id="wrong-name"),
+        pytest.param("hacs,hassfest,test", id="not-list"),
+        pytest.param(["hacs", "hassfest", 7], id="non-string-item"),
+    ],
+)
+def test_validate_protection_rejects_invalid_status_contexts(
+    contexts: object,
+) -> None:
+    response = _protection_response()
+    response["required_status_checks"]["contexts"] = contexts
+
+    with pytest.raises(ValueError, match=r"required_status_checks\.contexts"):
+        validate_protection(response, _CHECKS)
+
+
 def test_validate_protection_rejects_missing_required_status_contexts() -> None:
     response = _protection_response()
     del response["required_status_checks"]["contexts"]
+
+    with pytest.raises(ValueError, match=r"required_status_checks\.contexts"):
+        validate_protection(response, _CHECKS)
+
+
+def test_validate_protection_rejects_contexts_matching_wrong_read_back_checks() -> None:
+    response = _protection_response()
+    response["required_status_checks"]["contexts"] = ["hacs", "hassfest", "lint"]
+    response["required_status_checks"]["checks"][-1]["context"] = "lint"
 
     with pytest.raises(ValueError, match=r"required_status_checks\.contexts"):
         validate_protection(response, _CHECKS)

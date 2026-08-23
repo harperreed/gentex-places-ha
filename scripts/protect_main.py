@@ -111,7 +111,18 @@ def validate_protection(
 ) -> None:
     """Reject a GitHub read-back document that differs from the required policy."""
     _require_field(response, "required_status_checks.strict", expected=True)
-    _require_field(response, "required_status_checks.contexts", [])
+    expected_contexts = [check["context"] for check in checks]
+    contexts = _read_field(response, "required_status_checks.contexts")
+    if (
+        not isinstance(contexts, list)
+        or any(not isinstance(context, str) for context in contexts)
+        or any(not isinstance(context, str) for context in expected_contexts)
+        or len(contexts) != len(set(contexts))
+        or len(expected_contexts) != len(set(expected_contexts))
+        or set(contexts) != set(expected_contexts)
+    ):
+        message = "branch protection mismatch: required_status_checks.contexts"
+        raise ValueError(message)
     _require_field(response, "required_status_checks.checks", checks)
     _require_field(response, "enforce_admins.enabled", expected=True)
     reviews = _read_field(response, "required_pull_request_reviews")
