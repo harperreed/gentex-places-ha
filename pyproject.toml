@@ -11,7 +11,7 @@ dev = [
   "pip-audit==2.10.1",
   "place-integration-api@git+https://github.com/harperreed/place-integration-api.git@d92f07ecc9b7e66162d60d4a66cc07366543b631",
   "pytest-cov==7.1.0",
-  "pytest-homeassistant-custom-component==0.13.355",
+  "pytest-homeassistant-custom-component==0.13.357",
   "ruff==0.16.2",
 ]
 
